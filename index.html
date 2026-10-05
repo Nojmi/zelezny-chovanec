@@ -274,6 +274,12 @@
     body.print-mode-results .entry-panel{display:none !important;}
     body.print-mode-results .swim-panel{display:none !important;}
 
+    /* Režim TISK POŘADÍ DRUŽSTEV: jen panel družstev */
+    body.print-mode-teams .entry-panel,
+    body.print-mode-teams .swim-panel,
+    body.print-mode-teams .indiv-panel{display:none !important;}
+    body.print-mode-teams .print-break{page-break-before:auto; break-before:auto;}
+
     /* Režim TISK POŘADÍ PO PLAVÁNÍ: jen swim panel */
     body.print-mode-swim .entry-panel,
     body.print-mode-swim .indiv-panel,
@@ -337,6 +343,7 @@
     <div class="print-group">
       <span class="print-group-label">Tisk</span>
       <button class="action" onclick="printResults()">🖨 Výsledky</button>
+      <button class="action" onclick="printTeamsOnly()">🏆 Pořadí družstev</button>
       <button class="action" onclick="printSwimOnly()">🏊 Pořadí po plavání</button>
       <button class="action" onclick="printEntryForm()">📝 Zadávací tabulka</button>
     </div>
@@ -1263,9 +1270,9 @@ document.getElementById("eventName").addEventListener("input", e=>{
   if(printTitle) printTitle.textContent = state.eventName || "Železný chovanec";
 });
 
-/* ---------- Tisk: tři režimy ---------- */
+/* ---------- Tisk: čtyři režimy ---------- */
 function clearPrintModes(){
-  document.body.classList.remove("print-mode-entry", "print-mode-swim", "print-mode-results");
+  document.body.classList.remove("print-mode-entry", "print-mode-swim", "print-mode-results", "print-mode-teams");
   const pageStyle = document.getElementById("printPageStyle");
   if(pageStyle) pageStyle.textContent = "";
 }
@@ -1273,6 +1280,11 @@ function clearPrintModes(){
 function printResults(){
   clearPrintModes();
   document.body.classList.add("print-mode-results");
+  window.print();
+}
+function printTeamsOnly(){
+  clearPrintModes();
+  document.body.classList.add("print-mode-teams");
   window.print();
 }
 function printSwimOnly(){
