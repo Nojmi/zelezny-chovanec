@@ -162,7 +162,7 @@
   }
 
   /* Okruhy: samostatné tabulky kolo / běh s proměnlivým počtem okruhů */
-  .laps-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr)); gap:18px; align-items:start;}
+  .laps-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; align-items:start;}
   .lap-card{border:1px solid var(--line); border-radius:8px; background:var(--panel-2); padding:12px 12px 4px; min-width:0;}
   .lap-card.wide{grid-column:1/-1;}
   .lap-card-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
@@ -175,7 +175,13 @@
   .lap-stepper button:hover:not(:disabled){border-color:var(--bib); color:var(--bib);}
   .lap-stepper button:disabled{opacity:.35; cursor:default;}
   .lap-stepper .lap-n{font-family:var(--mono); font-weight:800; color:var(--text); min-width:22px; text-align:center; font-size:14px;}
-  .lap-card-scroll{overflow-x:auto; scrollbar-width:none;}
+  .lap-card-scroll{display:none; overflow-x:auto; scrollbar-width:none;}
+  .lap-preview{display:flex; flex-wrap:wrap; gap:4px; padding:2px 0 12px;}
+  .lp-box{
+    display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px;
+    border:1px solid var(--line); border-radius:4px; background:var(--panel);
+    font-family:var(--mono); font-size:10px; color:var(--text-dim);
+  }
   .lap-card-scroll::-webkit-scrollbar{display:none;}
   .lap-card table{width:100%;}
   .lap-name{white-space:nowrap; padding-right:10px !important;}
@@ -282,7 +288,8 @@
     .cat-chip{color:#000; background:#eee; border:1px solid #000;}
     .member-names{color:#000;}
     .dq-label{color:#000;}
-    .lap-stepper{display:none !important;}
+    .lap-stepper, .lap-preview{display:none !important;}
+    .lap-card-scroll{display:block !important;}
     .lap-card{background:#fff; border:1px solid #000; break-inside:avoid; page-break-inside:avoid;}
     .lap-card.wide, .laps-grid{grid-column:auto;}
     body.print-mode-entry .laps-grid{grid-template-columns:1fr; gap:10px;}
@@ -421,7 +428,7 @@
   </section>
 
   <section class="panel entry-panel laps-panel" id="lapsPanel">
-    <h2 class="panel-title">Okruhy — kolo a běh <span class="hint no-print">počet okruhů se nastavuje zvlášť pro kolo a běh (plus / minus)</span></h2>
+    <h2 class="panel-title">Nastavení okruhů <span class="cat-chip no-print" id="lapsCatChip"></span> <span class="hint no-print">kolik políček okruhů se vytiskne u každého závodníka v zadávací tabulce (zvlášť pro kolo a běh)</span></h2>
     <div class="laps-grid">
       <div class="lap-card" id="lapCardBike"></div>
       <div class="lap-card" id="lapCardRun"></div>
@@ -940,7 +947,6 @@ function renderLapCard(kind){
   const card = document.getElementById(kind === "bike" ? "lapCardBike" : "lapCardRun");
   const rows = state.rows[state.activeCategory];
   const n = lapCount(kind);
-  card.classList.toggle("wide", n > 10);
   let html = `<div class="lap-card-head">
       <span class="lap-card-title">${info.title}</span>
       <span class="lap-stepper">Počet okruhů
@@ -949,10 +955,10 @@ function renderLapCard(kind){
         <button type="button" data-d="1" title="Přidat okruh" ${n>=MAX_LAPS?"disabled":""}>+</button>
       </span>
     </div>
+    <div class="lap-preview" aria-hidden="true">${Array.from({length:n},(_,i)=>`<span class="lp-box">${i+1}</span>`).join("")}</div>
     <div class="lap-card-scroll"><table><thead><tr><th>St.č</th><th>Jméno</th>`;
   for(let i=1;i<=n;i++) html += `<th class="laps-head">${i}</th>`;
   html += `<th style="text-align:right">Hotovo</th></tr></thead><tbody></tbody></table></div>`;
-  if(!rows.length) html += `<div class="empty-hint">Zatím žádní závodníci.</div>`;
   card.innerHTML = html;
   card.querySelectorAll(".lap-stepper button").forEach(btn=>{
     btn.onclick = ()=>changeLaps(kind, parseInt(btn.dataset.d,10));
@@ -1266,7 +1272,7 @@ function escapeHtml(str){
 
 function updateCategoryLabels(){
   const cat = state.activeCategory;
-  ["swimCatChip","indivCatChip","teamCatChip"].forEach(id=>{
+  ["swimCatChip","indivCatChip","teamCatChip","lapsCatChip"].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.textContent = cat;
   });
