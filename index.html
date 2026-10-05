@@ -345,6 +345,21 @@
     }
     body.print-mode-entry th.day-label{background:#eee !important; color:#000 !important;}
     body.print-mode-entry .entry-panel input::placeholder{color:transparent !important;}
+
+    /* ČERNOBÍLÝ TISK: žádné barvy ani podklady (prohlížeč je při tisku většinou nevykresluje),
+       vše černě na bílém; čísla závodníků jsou v rámečku místo na černém podkladu. */
+    *, *::before, *::after{
+      color:#000 !important; background:transparent !important; background-image:none !important;
+      box-shadow:none !important; text-shadow:none !important;
+    }
+    html, body{background:#fff !important;}
+    .bib-badge, tr.dq-row .bib-badge, body.print-mode-entry .bib-badge{
+      border:1.5px solid #000 !important; color:#000 !important; background:transparent !important;
+      font-weight:800; padding:0 4px;
+    }
+    input[type=checkbox]{accent-color:#000;}
+    .e2-box{color:#555 !important;}
+    .e2-box.on{color:#000 !important;}
   }
 </style>
 <style id="printPageStyle"></style>
