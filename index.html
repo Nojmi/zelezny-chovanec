@@ -236,6 +236,11 @@
   .discipline-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;}
   .discipline-title{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin:0 0 8px; font-weight:700;}
   .member-names{font-size:12px; color:var(--text-dim); line-height:1.5;}
+  td.member-names{min-width:240px; width:320px; max-width:320px;}
+  .team-member{display:flex; justify-content:space-between; gap:18px; padding:1px 0; border-bottom:1px dotted var(--line);}
+  .team-member:last-child{border-bottom:none;}
+  .tm-name{color:var(--text);}
+  .tm-time{font-family:var(--mono); color:var(--text-dim); white-space:nowrap;}
 
   @media (max-width: 860px){
     .discipline-grid{grid-template-columns:1fr;}
@@ -461,7 +466,7 @@
   <section class="panel print-break team-panel">
     <h2 class="panel-title">Pořadí družstev <span class="n" id="teamCount">0</span> <span class="cat-chip" id="teamCatChip"></span></h2>
     <table>
-      <thead><tr><th>Poř.</th><th>Ústav</th><th>Počítaní závodníci</th><th>Celkový čas družstva</th></tr></thead>
+      <thead><tr><th>Poř.</th><th>Ústav</th><th>Počítaní závodníci a jejich časy</th><th>Celkový čas družstva</th></tr></thead>
       <tbody id="teamBody"></tbody>
     </table>
     <div class="team-note">Do týmového výsledku se počítají 3 nejrychlejší časy daného ústavu.</div>
@@ -1220,7 +1225,9 @@ function renderTeams(){
     const counted = sorted.slice(0,3);
     const complete = counted.length >= 3;
     const sum = counted.reduce((acc,x)=>acc+x.total,0);
-    const names = counted.map(x=>escapeHtml(x.row.name)||`#${x.row.bib}`).join(", ");
+    const names = counted.map(x=>
+      `<div class="team-member"><span class="tm-name">${escapeHtml(x.row.name)||("#"+x.row.bib)}</span><span class="tm-time">${formatTime(x.total)}</span></div>`
+    ).join("");
     return { club, names, total: sum, complete, count: counted.length };
   });
   // Pořadí dostanou jen kompletní družstva (3 započítaní závodníci), seřazená podle času.
