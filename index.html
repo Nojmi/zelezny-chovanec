@@ -161,6 +161,26 @@
     width:18px; height:18px; accent-color:var(--bib); cursor:pointer;
   }
 
+  /* Okruhy: samostatné tabulky kolo / běh s proměnlivým počtem okruhů */
+  .laps-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr)); gap:18px; align-items:start;}
+  .lap-card{border:1px solid var(--line); border-radius:8px; background:var(--panel-2); padding:12px 12px 4px; min-width:0;}
+  .lap-card.wide{grid-column:1/-1;}
+  .lap-card-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
+  .lap-card-title{font-size:12px; text-transform:uppercase; letter-spacing:.1em; font-weight:800; color:var(--bib);}
+  .lap-stepper{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim);}
+  .lap-stepper button{
+    width:26px; height:26px; border-radius:5px; border:1px solid var(--line); background:var(--panel);
+    color:var(--text); font-size:16px; line-height:1; cursor:pointer; font-weight:700;
+  }
+  .lap-stepper button:hover:not(:disabled){border-color:var(--bib); color:var(--bib);}
+  .lap-stepper button:disabled{opacity:.35; cursor:default;}
+  .lap-stepper .lap-n{font-family:var(--mono); font-weight:800; color:var(--text); min-width:22px; text-align:center; font-size:14px;}
+  .lap-card-scroll{overflow-x:auto; scrollbar-width:none;}
+  .lap-card-scroll::-webkit-scrollbar{display:none;}
+  .lap-card table{width:100%;}
+  .lap-name{white-space:nowrap; padding-right:10px !important;}
+  .lap-count{font-family:var(--mono); font-weight:800; font-size:12px; color:var(--text-dim); text-align:right; white-space:nowrap; width:44px;}
+  .lap-count.done{color:var(--ok-bright);}
   .total-cell{font-family:var(--mono); font-weight:800; color:var(--ok-bright); white-space:nowrap;}
   .rank-cell{font-family:var(--mono); font-weight:800; color:var(--bib); text-align:center; width:36px;}
 
@@ -236,6 +256,13 @@
     .cat-chip{color:#000; background:#eee; border:1px solid #000;}
     .member-names{color:#000;}
     .dq-label{color:#000;}
+    .lap-stepper{display:none !important;}
+    .lap-card{background:#fff; border:1px solid #000; break-inside:avoid; page-break-inside:avoid;}
+    .lap-card.wide, .laps-grid{grid-column:auto;}
+    body.print-mode-entry .laps-grid{grid-template-columns:1fr; gap:10px;}
+    body.print-mode-entry .lap-card-title{color:#000;}
+    body.print-mode-entry .lap-count{color:#000 !important;}
+    body.print-mode-entry .laps-panel{page-break-before:always;}
     tr.dq-row td{background:#fff;}
     tr.dq-row .bib-badge{background:#000;}
     a{display:none;}
@@ -333,6 +360,14 @@
     <div class="empty-hint" id="entryEmptyHint">Zatím žádní závodníci v této kategorii. Klikni na „+ Přidat závodníka“.</div>
   </section>
 
+  <section class="panel entry-panel laps-panel" id="lapsPanel">
+    <h2 class="panel-title">Okruhy — kolo a běh <span class="hint no-print">počet okruhů se nastavuje zvlášť pro kolo a běh (plus / minus)</span></h2>
+    <div class="laps-grid">
+      <div class="lap-card" id="lapCardBike"></div>
+      <div class="lap-card" id="lapCardRun"></div>
+    </div>
+  </section>
+
   <section class="panel swim-panel">
     <h2 class="panel-title">Pořadí po plavání — 1. den <span class="n" id="swimCount">0</span> <span class="cat-chip" id="swimCatChip"></span> <span class="hint">určuje pořadí startu na kolo 2. den</span></h2>
     <table>
@@ -417,17 +452,22 @@
     plavani: "mm:ss",   // ruční zadání
     dojezd: "mm:ss",    // ruční zadání
     vysledny: "mm:ss",  // ruční zadání ("Výsledný čas")
-    laps: [bool x8]      // jen zaškrtávací pole kolo-běh 1-8, bez vlivu na výpočet
+    bikeLaps: [bool], runLaps: [bool]   // zaškrtávací pole okruhů kola / běhu (počet nastavitelný), bez vlivu na výpočet
   }
 */
 const CATEGORIES = ["Žáci", "Mladší dorost", "Starší dorost"];
 const STORAGE_PREFIX = "zc_v2_";
-const LAP_SLOTS = 8;
+const DEFAULT_LAPS = 8, MIN_LAPS = 1, MAX_LAPS = 30;
+const LAP_KINDS = {
+  bike: {title:"Kolo", field:"bikeLaps", label:"okruhů kola"},
+  run:  {title:"Běh",  field:"runLaps",  label:"okruhů běhu"}
+};
 
 let state = {
   activeCategory: CATEGORIES[0],
   eventName: "",
-  rows: {} // per category -> array of competitor rows
+  rows: {}, // per category -> array of competitor rows
+  lapCfg: {} // per category -> {bike:n, run:n} počet okruhů
 };
 
 function loadState(){
@@ -436,9 +476,26 @@ function loadState(){
   CATEGORIES.forEach(cat=>{
     const raw = localStorage.getItem(STORAGE_PREFIX + "rows_" + cat);
     state.rows[cat] = raw ? JSON.parse(raw) : [];
+    // migrace ze staré verze: jediná sada "laps" (8 polí) patřila ke kolu
+    state.rows[cat].forEach(r=>{
+      if(r.laps && !r.bikeLaps){ r.bikeLaps = r.laps.slice(); }
+      delete r.laps;
+    });
+    let cfg = null;
+    try{ cfg = JSON.parse(localStorage.getItem(STORAGE_PREFIX + "lapcfg_" + cat)); }catch(e){}
+    state.lapCfg[cat] = {
+      bike: clampLaps(cfg && cfg.bike),
+      run:  clampLaps(cfg && cfg.run)
+    };
   });
   const savedTab = localStorage.getItem(STORAGE_PREFIX + "activeCategory");
   if(savedTab && CATEGORIES.includes(savedTab)) state.activeCategory = savedTab;
+}
+
+function clampLaps(n){
+  n = parseInt(n,10);
+  if(isNaN(n)) return DEFAULT_LAPS;
+  return Math.max(MIN_LAPS, Math.min(MAX_LAPS, n));
 }
 
 function persist(){
@@ -446,6 +503,7 @@ function persist(){
   localStorage.setItem(STORAGE_PREFIX + "activeCategory", state.activeCategory);
   CATEGORIES.forEach(cat=>{
     localStorage.setItem(STORAGE_PREFIX + "rows_" + cat, JSON.stringify(state.rows[cat] || []));
+    localStorage.setItem(STORAGE_PREFIX + "lapcfg_" + cat, JSON.stringify(state.lapCfg[cat]));
   });
 }
 
@@ -513,7 +571,8 @@ function newRow(){
     dojezd: "",
     vysledny: "",
     dq: false,
-    laps: Array.from({length:LAP_SLOTS}, ()=>false)
+    bikeLaps: [],
+    runLaps: []
   };
 }
 
@@ -581,7 +640,8 @@ function loadTestData(){
         plavani: person.plavani,
         dojezd: person.dojezd,
         vysledny: person.vysledny,
-        laps: Array.from({length:LAP_SLOTS}, ()=>false)
+        bikeLaps: [],
+        runLaps: []
       });
     });
   });
@@ -686,15 +746,12 @@ function renderEntryHead(){
   dayRow.innerHTML = `
     <th colspan="3" class="day-label-empty"></th>
     <th class="day-label day1 day1-col-head">1. den — plavání</th>
-    <th colspan="${2+LAP_SLOTS}" class="day-label day2">2. den — kolo, běh, cíl</th>
+    <th colspan="3" class="day-label day2">2. den — kolo, běh, cíl</th>
     <th class="del-col"></th>
     <th class="del-col"></th>
   `;
   const head = document.getElementById("entryHeadRow");
   let html = `<th>St.č</th><th class="name-cell">Jméno</th><th class="club-cell">Ústav</th><th class="day1-col-head">Plavání</th><th class="st-kolo-head" title="Dopočítáno: zpoždění na kolo oproti nejrychlejšímu plavci">St. Kolo</th><th>Dojezd</th>`;
-  for(let i=1;i<=LAP_SLOTS;i++){
-    html += `<th class="laps-head">${i}</th>`;
-  }
   html += `<th>Výsledný čas</th><th class="del-col" title="Diskvalifikace">DQ</th><th class="del-col"></th>`;
   head.innerHTML = html;
 }
@@ -718,7 +775,7 @@ function renderEntryBody(){
     const nameTd = document.createElement("td");
     nameTd.className = "name-cell";
     nameTd.innerHTML = `<input class="cell" value="${escapeAttr(row.name)}" placeholder="Jméno a příjmení">`;
-    nameTd.querySelector("input").oninput = e=>{ row.name = e.target.value; persist(); renderRankings(); };
+    nameTd.querySelector("input").oninput = e=>{ row.name = e.target.value; persist(); renderRankings(); renderLaps(); };
     tr.appendChild(nameTd);
 
     const clubTd = document.createElement("td");
@@ -751,14 +808,6 @@ function renderEntryBody(){
     dojezdTd.innerHTML = timeInputHTML(row.dojezd);
     bindTimeInput(dojezdTd.querySelector("input"), v=>{ row.dojezd = v; persist(); renderRankings(); });
     tr.appendChild(dojezdTd);
-
-    (row.laps||[]).forEach((checked, idx)=>{
-      const lapTd = document.createElement("td");
-      lapTd.className = "lap-check-cell";
-      lapTd.innerHTML = `<input type="checkbox" ${checked?"checked":""}>`;
-      lapTd.querySelector("input").onchange = e=>{ row.laps[idx] = e.target.checked; persist(); };
-      tr.appendChild(lapTd);
-    });
 
     const vysledTd = document.createElement("td");
     vysledTd.innerHTML = timeInputHTML(row.vysledny);
@@ -799,6 +848,86 @@ function updateStKoloDisplay(){
       el.innerHTML = stKolo===null ? `<div class="computed-cell">—</div>` : `<div class="computed-cell">${formatTime(stKolo)}</div>`;
     }
   });
+}
+
+/* ---------- Okruhy kolo / běh ----------
+  Každá disciplína má vlastní tabulku a vlastní počet okruhů (výchozí 8, 1–30).
+  Ubrání okruhů nemaže už zaškrtnuté hodnoty, jen se skryjí; po přidání se vrátí.
+*/
+function lapCount(kind){ return state.lapCfg[state.activeCategory][kind]; }
+
+function changeLaps(kind, delta){
+  const cfg = state.lapCfg[state.activeCategory];
+  cfg[kind] = clampLaps(cfg[kind] + delta);
+  persist();
+  renderLaps();
+}
+
+function doneLaps(row, kind){
+  const n = lapCount(kind);
+  const arr = row[LAP_KINDS[kind].field] || [];
+  let c = 0;
+  for(let i=0;i<n;i++) if(arr[i]) c++;
+  return c;
+}
+
+function renderLapCard(kind){
+  const info = LAP_KINDS[kind];
+  const card = document.getElementById(kind === "bike" ? "lapCardBike" : "lapCardRun");
+  const rows = state.rows[state.activeCategory];
+  const n = lapCount(kind);
+  card.classList.toggle("wide", n > 10);
+  let html = `<div class="lap-card-head">
+      <span class="lap-card-title">${info.title}</span>
+      <span class="lap-stepper">Počet okruhů
+        <button type="button" data-d="-1" title="Ubrat okruh" ${n<=MIN_LAPS?"disabled":""}>−</button>
+        <span class="lap-n">${n}</span>
+        <button type="button" data-d="1" title="Přidat okruh" ${n>=MAX_LAPS?"disabled":""}>+</button>
+      </span>
+    </div>
+    <div class="lap-card-scroll"><table><thead><tr><th>St.č</th><th>Jméno</th>`;
+  for(let i=1;i<=n;i++) html += `<th class="laps-head">${i}</th>`;
+  html += `<th style="text-align:right">Hotovo</th></tr></thead><tbody></tbody></table></div>`;
+  if(!rows.length) html += `<div class="empty-hint">Zatím žádní závodníci.</div>`;
+  card.innerHTML = html;
+  card.querySelectorAll(".lap-stepper button").forEach(btn=>{
+    btn.onclick = ()=>changeLaps(kind, parseInt(btn.dataset.d,10));
+  });
+  const body = card.querySelector("tbody");
+  rows.forEach(row=>{
+    const tr = document.createElement("tr");
+    if(row.dq) tr.classList.add("dq-row");
+    const arr = row[info.field] || [];
+    let tds = `<td><span class="bib-badge">${row.bib}</span></td><td class="lap-name">${escapeAttr(row.name) || "<span style='color:var(--text-dim)'>—</span>"}</td>`;
+    for(let i=0;i<n;i++){
+      tds += `<td class="lap-check-cell"><input type="checkbox" data-i="${i}" ${arr[i]?"checked":""}></td>`;
+    }
+    tds += `<td class="lap-count"></td>`;
+    tr.innerHTML = tds;
+    const countCell = tr.querySelector(".lap-count");
+    const updateCount = ()=>{
+      const d = doneLaps(row, kind);
+      countCell.textContent = `${d}/${n}`;
+      countCell.classList.toggle("done", d === n);
+    };
+    updateCount();
+    tr.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+      cb.onchange = ()=>{
+        if(!row[info.field]) row[info.field] = [];
+        const i = parseInt(cb.dataset.i,10);
+        while(row[info.field].length <= i) row[info.field].push(false);
+        row[info.field][i] = cb.checked;
+        persist();
+        updateCount();
+      };
+    });
+    body.appendChild(tr);
+  });
+}
+
+function renderLaps(){
+  renderLapCard("bike");
+  renderLapCard("run");
 }
 
 function timeInputHTML(value){
@@ -1085,6 +1214,7 @@ function renderAll(){
   renderTabs();
   renderEntryHead();
   renderEntryBody();
+  renderLaps();
   renderRankings();
   updateCategoryLabels();
   document.getElementById("eventName").value = state.eventName;
@@ -1095,7 +1225,9 @@ function exportCSV(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
   let header = ["St.c","Jmeno","Ustav","Plavani","St.Kolo","Dojezd"];
-  for(let i=1;i<=LAP_SLOTS;i++){ header.push(`Kolo-beh_${i}`); }
+  const nB = lapCount("bike"), nR = lapCount("run");
+  for(let i=1;i<=nB;i++){ header.push(`Kolo_okruh_${i}`); }
+  for(let i=1;i<=nR;i++){ header.push(`Beh_okruh_${i}`); }
   header.push("Vysledny_cas","Kolo","Beh","Celkovy_cas","Diskvalifikovan");
 
   const lines = [header.join(";")];
@@ -1107,7 +1239,8 @@ function exportCSV(){
     const behStr = (calc && calc!=="invalid") ? formatTime(calc.beh) : (calc==="invalid" ? "CHYBA" : "");
     const celkovyStr = (calc && calc!=="invalid") ? formatTime(calc.celkovy) : (calc==="invalid" ? "CHYBA" : "");
     const vals = [r.bib, r.name, r.club, r.plavani, stKoloStr, r.dojezd];
-    (r.laps||[]).forEach(checked=>{ vals.push(checked ? "X" : ""); });
+    for(let i=0;i<nB;i++) vals.push((r.bikeLaps||[])[i] ? "X" : "");
+    for(let i=0;i<nR;i++) vals.push((r.runLaps||[])[i] ? "X" : "");
     vals.push(r.vysledny, koloStr, behStr, celkovyStr, r.dq ? "ANO" : "");
     lines.push(vals.join(";"));
   });
