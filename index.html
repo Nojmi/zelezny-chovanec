@@ -296,10 +296,15 @@
     body.print-mode-entry thead th, body.print-mode-entry tbody td{padding:3px 4px;}
     body.print-mode-entry .name-cell{min-width:0; width:auto;}
     body.print-mode-entry .club-cell{min-width:0; width:auto;}
-    body.print-mode-entry input.cell{padding:3px 4px; font-size:10px;}
-    body.print-mode-entry input.time-cell, body.print-mode-entry .computed-cell{
-      width:48px; font-size:10px; padding:3px 2px;
+    /* Větší pole s časy, aby se do nich dalo pohodlně psát propiskou */
+    body.print-mode-entry input.time-cell{
+      width:105px; height:27px; font-size:12px; padding:0 2px; border-width:1.5px !important;
     }
+    body.print-mode-entry .computed-cell{
+      width:70px; height:27px; line-height:25px; font-size:12px; padding:0 2px; box-sizing:border-box;
+    }
+    body.print-mode-entry input.cell{height:27px; padding:0 6px; font-size:11px; box-sizing:border-box;}
+    body.print-mode-entry tbody td{padding-top:3px; padding-bottom:3px;}
     body.print-mode-entry .lap-check-cell{width:14px; padding:3px 1px !important;}
     body.print-mode-entry .lap-check-cell input[type=checkbox]{width:12px; height:12px; accent-color:#000;}
     body.print-mode-entry .del-col{display:none !important;}
