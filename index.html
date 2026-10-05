@@ -706,8 +706,8 @@ const TEST_NAMES = [
 ];
 
 function loadTestData(){
-  if(!confirm(`Vyplnit testovací data (jména, ústavy a časy) do všech 3 kategorií (${TEST_NAMES.length} závodníků každá)? Existující řádky v kategoriích zůstanou, testovací se přidají za ně.`)) return;
-  CATEGORIES.forEach(cat=>{
+  if(!confirm(`Vyplnit testovací data (jména, ústavy a časy, ${TEST_NAMES.length} závodníků) do kategorie „${state.activeCategory}“? Existující řádky zůstanou, testovací se přidají za ně.`)) return;
+  [state.activeCategory].forEach(cat=>{
     const rows = state.rows[cat];
     const startBib = nextBib(cat);
     TEST_NAMES.forEach((person, idx)=>{
