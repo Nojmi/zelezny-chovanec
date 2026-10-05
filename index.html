@@ -432,7 +432,11 @@ function persist(){
 /* ---------- Time helpers ---------- */
 function parseTime(str){
   if(!str || !str.trim()) return null;
-  const parts = str.trim().split(":").map(p=>p.trim());
+  str = str.trim();
+  // Zkrácený zápis jen číslicemi (např. 4521 = 45:21, 10649 = 1:06:49) se chápe rovnou,
+  // aby se čas započítal i dřív, než se pole opustí.
+  if(/^\d+$/.test(str)) str = digitsToTime(str);
+  const parts = str.split(":").map(p=>p.trim());
   if(parts.some(p=>p==="" || isNaN(p))) return null;
   let h=0,m=0,s=0;
   if(parts.length===3){ [h,m,s]=parts.map(Number); }
@@ -765,6 +769,16 @@ function bindTimeInput(input, onChange){
     input.classList.toggle("invalid", !valid);
     onChange(v);
   };
+  // Enter potvrdí zadání: pole se zformátuje a kurzor skočí do dalšího pole.
+  input.onkeydown = e=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      const fields = Array.from(document.querySelectorAll("#entryBody input.time-cell"));
+      const next = fields[fields.indexOf(input) + 1];
+      input.blur();
+      if(next) next.focus();
+    }
+  };
   input.onblur = e=>{
     const raw = e.target.value.trim();
     // pokud je zadáno jen číslicemi (bez dvojtečky), automaticky doplnit formát H:MM:SS
@@ -941,19 +955,28 @@ function renderTeams(){
     const complete = counted.length >= 3;
     const sum = counted.reduce((acc,x)=>acc+x.total,0);
     const names = counted.map(x=>escapeHtml(x.row.name)||`#${x.row.bib}`).join(", ");
-    return { club, names, total: sum, complete };
+    return { club, names, total: sum, complete, count: counted.length };
   });
-  teams.sort((a,b)=> a.total - b.total);
+  // Pořadí dostanou jen kompletní družstva (3 započítaní závodníci), seřazená podle času.
+  // Družstva s méně závodníky se řadí až pod ně (a bez pořadového čísla), aby
+  // nepředbíhala úplná družstva jen proto, že mají kratší součet.
+  teams.sort((a,b)=>{
+    if(a.complete !== b.complete) return a.complete ? -1 : 1;
+    if(!a.complete && a.count !== b.count) return b.count - a.count;
+    return a.total - b.total;
+  });
 
   const body = document.getElementById("teamBody");
   body.innerHTML = "";
-  document.getElementById("teamCount").textContent = teams.length;
+  document.getElementById("teamCount").textContent = teams.filter(t=>t.complete).length;
   document.getElementById("teamEmptyHint").style.display = teams.length ? "none" : "block";
 
-  teams.forEach((t,i)=>{
+  let rank = 0;
+  teams.forEach((t)=>{
+    const rankLabel = t.complete ? String(++rank) : "—";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="rank-cell">${i+1}</td>
+      <td class="rank-cell">${rankLabel}</td>
       <td>${escapeHtml(t.club)}</td>
       <td class="member-names">${t.names}</td>
       <td class="total-cell">${formatTime(t.total)}</td>
