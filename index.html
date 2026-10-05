@@ -205,6 +205,7 @@
   .e2-box{display:inline-flex; align-items:center; justify-content:center; width:19px; height:19px; border:1.5px solid #000; border-radius:3px; font-size:8px; color:#777; font-family:var(--mono); box-sizing:border-box;}
   .e2-box.on{color:#000; font-size:13px; font-weight:800;}
   table.entry2 td.e2-d1, table.entry2 th.e2-d1{border-right:2px dashed #000;}
+  .opt-tag{font-size:9px; font-weight:600; letter-spacing:.04em; text-transform:none; color:var(--text-dim); border:1px solid var(--line); border-radius:3px; padding:1px 4px; margin-left:3px; vertical-align:1px;}
   .total-cell{font-family:var(--mono); font-weight:800; color:var(--ok-bright); white-space:nowrap;}
   .rank-cell{font-family:var(--mono); font-weight:800; color:var(--bib); text-align:center; width:36px;}
 
@@ -451,7 +452,7 @@
   </section>
 
   <section class="panel no-print">
-    <h2 class="panel-title">Přepočet <span class="n" id="calcCount">0</span> <span class="hint">Kolo = Dojezd − St.Kolo · Běh = Výsledný čas − Dojezd · Celkový čas = Plavání + Kolo + Běh</span></h2>
+    <h2 class="panel-title">Přepočet <span class="n" id="calcCount">0</span> <span class="hint">Kolo = Dojezd − St.Kolo · Běh = Výsledný čas − Dojezd (Kolo a Běh jen při zadaném Dojezdu) · Celkový čas = Plavání + Kolo + Běh</span></h2>
     <div style="overflow-x:auto;">
       <table>
         <thead><tr>
@@ -469,7 +470,7 @@
       <thead><tr><th>Poř.</th><th>St.č</th><th>Jméno</th><th>Ústav</th><th>Celkový čas</th></tr></thead>
       <tbody id="rankBody"></tbody>
     </table>
-    <div class="empty-hint" id="rankEmptyHint">Žebříček se zobrazí po zadání Plavání, Dojezdu a Výsledného času.</div>
+    <div class="empty-hint" id="rankEmptyHint">Žebříček se zobrazí po zadání Plavání a Výsledného času (Dojezd je nepovinný).</div>
   </section>
 
   <section class="panel print-break team-panel">
@@ -753,9 +754,10 @@ function getFastestSwimmer(rows){
 
 /* ---------- Přepočet podle vzorců z Excelu ----------
   St. Kolo  = Plavání(řádek) − Plavání(nejrychlejší plavec)   [nejrychlejší = 0, referenční]
-  Kolo      = Dojezd − St. Kolo
-  Běh       = Výsledný čas − Dojezd
-  Celkový čas = Plavání + Kolo + Běh
+  Kolo      = Dojezd − St. Kolo            (jen když je zadán Dojezd – ten je nepovinný)
+  Běh       = Výsledný čas − Dojezd        (jen když je zadán Dojezd)
+  Celkový čas = Plavání + Kolo + Běh  =  Plavání(nejrychlejší) + Výsledný čas
+  Celkový čas tedy Dojezd nepotřebuje: stačí Plavání a Výsledný čas.
 */
 function computeCalc(rows, row){
   if(!rows || !rows.length) return null;
@@ -775,13 +777,17 @@ function computeCalc(rows, row){
   if(row.dojezd && row.dojezd.trim() && dojezd===null) return "invalid";
   if(row.vysledny && row.vysledny.trim() && vysledny===null) return "invalid";
 
-  // dokud nejsou vyplněná všechna 3 pole (+ plavání referenčního závodníka), přepočet nejde dokončit
-  if(pOwn===null || dojezd===null || vysledny===null || pRef===null) return null;
+  // Dojezd je nepovinný (mezičas na kole nemusí být znám). Celkový čas potřebuje jen Plavání
+  // (vlastní i nejrychlejšího plavce) a Výsledný čas.
+  if(pOwn===null || vysledny===null || pRef===null) return null;
 
   const stKolo = (first.id === row.id) ? 0 : (pOwn - pRef);
-  const kolo = dojezd - stKolo;
-  const beh = vysledny - dojezd;
-  const celkovy = pOwn + kolo + beh;
+  const celkovy = pOwn + (vysledny - stKolo);   // = Plavání + Kolo + Běh
+  let kolo = null, beh = null;
+  if(dojezd !== null){
+    kolo = dojezd - stKolo;
+    beh = vysledny - dojezd;
+  }
   return { stKolo, kolo, beh, celkovy };
 }
 
@@ -830,7 +836,7 @@ function renderEntryHead(){
     <th class="del-col"></th>
   `;
   const head = document.getElementById("entryHeadRow");
-  let html = `<th>St.č</th><th class="name-cell">Jméno</th><th class="club-cell">Ústav</th><th class="day1-col-head">Plavání</th><th class="st-kolo-head" title="Dopočítáno: zpoždění na kolo oproti nejrychlejšímu plavci">St. Kolo</th><th>Dojezd</th>`;
+  let html = `<th>St.č</th><th class="name-cell">Jméno</th><th class="club-cell">Ústav</th><th class="day1-col-head">Plavání</th><th class="st-kolo-head" title="Dopočítáno: zpoždění na kolo oproti nejrychlejšímu plavci">St. Kolo</th><th title="Nepovinné: mezičas na kole, nemusí být znám">Dojezd <span class="opt-tag">nepovinné</span></th>`;
   html += `<th>Výsledný čas</th><th class="del-col" title="Diskvalifikace">DQ</th><th class="del-col"></th>`;
   head.innerHTML = html;
 }
@@ -1117,8 +1123,8 @@ function renderCalc(){
       stKoloStr = koloStr = behStr = celkovyStr = "—";
     } else {
       stKoloStr = (fastest && fastest.id===row.id) ? "ref." : formatTime(calc.stKolo);
-      koloStr = formatTime(calc.kolo);
-      behStr = formatTime(calc.beh);
+      koloStr = calc.kolo===null ? "—" : formatTime(calc.kolo);
+      behStr = calc.beh===null ? "—" : formatTime(calc.beh);
       celkovyStr = formatTime(calc.celkovy);
     }
     if(row.dq) celkovyStr = "DISKV.";
@@ -1194,8 +1200,8 @@ function renderDisciplineRankings(){
     if(r.dq) return;
     const calc = computeCalc(rows, r);
     if(calc && calc!=="invalid"){
-      kolo.push({row:r, t:calc.kolo});
-      beh.push({row:r, t:calc.beh});
+      if(calc.kolo !== null) kolo.push({row:r, t:calc.kolo});
+      if(calc.beh !== null) beh.push({row:r, t:calc.beh});
     }
   });
   kolo.sort((a,b)=>a.t-b.t);
@@ -1315,8 +1321,8 @@ function exportCSV(){
   rows.forEach(r=>{
     const calc = computeCalc(rows, r);
     const stKoloStr = (fastest && fastest.id===r.id) ? "ref." : (calc && calc!=="invalid" ? formatTime(calc.stKolo) : "");
-    const koloStr = (calc && calc!=="invalid") ? formatTime(calc.kolo) : (calc==="invalid" ? "CHYBA" : "");
-    const behStr = (calc && calc!=="invalid") ? formatTime(calc.beh) : (calc==="invalid" ? "CHYBA" : "");
+    const koloStr = (calc && calc!=="invalid") ? (calc.kolo===null ? "" : formatTime(calc.kolo)) : (calc==="invalid" ? "CHYBA" : "");
+    const behStr = (calc && calc!=="invalid") ? (calc.beh===null ? "" : formatTime(calc.beh)) : (calc==="invalid" ? "CHYBA" : "");
     const celkovyStr = (calc && calc!=="invalid") ? formatTime(calc.celkovy) : (calc==="invalid" ? "CHYBA" : "");
     const vals = [r.bib, r.name, r.club, r.plavani, stKoloStr, r.dojezd];
     for(let i=0;i<nB;i++) vals.push((r.bikeLaps||[])[i] ? "X" : "");
