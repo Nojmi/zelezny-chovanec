@@ -288,9 +288,10 @@
     /* Ve výchozím stavu (bez JS třídy) skrýt zápisovou tabulku */
     .entry-panel{display:none !important;}
 
-    /* Režim TISK VÝSLEDKŮ: jen individuální + družstva (plavání má vlastní tlačítko) */
+    /* Režim TISK VÝSLEDKŮ JEDNOTLIVCŮ: jen pořadí jednotlivců (družstva a plavání mají vlastní tlačítka) */
     body.print-mode-results .entry-panel{display:none !important;}
-    body.print-mode-results .swim-panel{display:none !important;}
+    body.print-mode-results .swim-panel,
+    body.print-mode-results .team-panel{display:none !important;}
 
     /* Režim TISK ZADÁVACÍ TABULKY – VERZE 2 */
     .entry2-panel{display:none !important;}
@@ -385,7 +386,7 @@
     <button class="action primary" onclick="addRow()">+ Přidat závodníka</button>
     <div class="print-group">
       <span class="print-group-label">Tisk</span>
-      <button class="action" onclick="printResults()">🖨 Výsledky</button>
+      <button class="action" onclick="printResults()">🖨 Výsledky jednotlivců</button>
       <button class="action" onclick="printTeamsOnly()">🏆 Pořadí družstev</button>
       <button class="action" onclick="printSwimOnly()">🏊 Pořadí po plavání</button>
       <button class="action" onclick="printEntryForm()">📝 Zadávací tabulka</button>
