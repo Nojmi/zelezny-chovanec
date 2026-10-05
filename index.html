@@ -243,6 +243,8 @@
   .discipline-title{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin:0 0 8px; font-weight:700;}
   .member-names{font-size:12px; color:var(--text-dim); line-height:1.5;}
   td.member-names{min-width:240px; width:320px; max-width:320px;}
+  .team-total-col{text-align:center !important; width:30%;}
+  td.team-total-col{font-size:15px;}
   .team-member{display:flex; justify-content:space-between; gap:18px; padding:1px 0; border-bottom:1px dotted var(--line);}
   .team-member:last-child{border-bottom:none;}
   .tm-name{color:var(--text);}
@@ -473,7 +475,7 @@
   <section class="panel print-break team-panel">
     <h2 class="panel-title">Pořadí družstev <span class="n" id="teamCount">0</span> <span class="cat-chip" id="teamCatChip"></span></h2>
     <table>
-      <thead><tr><th>Poř.</th><th>Ústav</th><th>Počítaní závodníci a jejich časy</th><th>Celkový čas družstva</th></tr></thead>
+      <thead><tr><th>Poř.</th><th>Ústav</th><th>Počítaní závodníci a jejich časy</th><th class="team-total-col">Celkový čas družstva</th></tr></thead>
       <tbody id="teamBody"></tbody>
     </table>
     <div class="team-note">Do týmového výsledku se počítají 3 nejrychlejší časy daného ústavu.</div>
@@ -1258,7 +1260,7 @@ function renderTeams(){
       <td class="rank-cell">${rankLabel}</td>
       <td>${escapeHtml(t.club)}</td>
       <td class="member-names">${t.names}</td>
-      <td class="total-cell">${formatTime(t.total)}</td>
+      <td class="total-cell team-total-col">${formatTime(t.total)}</td>
     `;
     body.appendChild(tr);
   });
