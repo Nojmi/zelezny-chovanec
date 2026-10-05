@@ -530,6 +530,13 @@
 */
 const CATEGORIES = ["Žáci", "Mladší dorost", "Starší dorost"];
 const STORAGE_PREFIX = "zc_v2_";
+// První startovní číslo v každé kategorii
+const BIB_START = {"Žáci":1, "Mladší dorost":21, "Starší dorost":61};
+function nextBib(cat){
+  const rows = state.rows[cat] || [];
+  const base = BIB_START[cat] || 1;
+  return rows.length ? Math.max(base, Math.max(...rows.map(r=>r.bib||0))+1) : base;
+}
 const DEFAULT_LAPS = 8, MIN_LAPS = 1, MAX_LAPS = 30;
 const LAP_KINDS = {
   bike: {title:"Kolo", field:"bikeLaps", label:"okruhů kola"},
@@ -634,10 +641,9 @@ function digitsToTime(digits){
 function newRow(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
-  const nextBib = rows.length ? Math.max(...rows.map(r=>r.bib||0))+1 : 1;
   return {
     id: "r"+Date.now()+Math.random().toString(36).slice(2,7),
-    bib: nextBib,
+    bib: nextBib(cat),
     name: "",
     club: "",
     plavani: "",
@@ -703,7 +709,7 @@ function loadTestData(){
   if(!confirm(`Vyplnit testovací data (jména, ústavy a časy) do všech 3 kategorií (${TEST_NAMES.length} závodníků každá)? Existující řádky v kategoriích zůstanou, testovací se přidají za ně.`)) return;
   CATEGORIES.forEach(cat=>{
     const rows = state.rows[cat];
-    const startBib = rows.length ? Math.max(...rows.map(r=>r.bib||0))+1 : 1;
+    const startBib = nextBib(cat);
     TEST_NAMES.forEach((person, idx)=>{
       rows.push({
         id: "r"+Date.now()+Math.random().toString(36).slice(2,7)+idx,
