@@ -181,6 +181,24 @@
   .lap-name{white-space:nowrap; padding-right:10px !important;}
   .lap-count{font-family:var(--mono); font-weight:800; font-size:12px; color:var(--text-dim); text-align:right; white-space:nowrap; width:44px;}
   .lap-count.done{color:var(--ok-bright);}
+  /* Zadávací tabulka verze 2 (jen pro tisk): okruhy kola a běhu pod sebou přímo v řádku závodníka */
+  .entry2-panel{display:none;}
+  table.entry2{border-collapse:collapse; width:100%; font-size:11px;}
+  table.entry2 th{font-size:10px; color:#000; padding:3px 5px; border-bottom:2px solid #000; text-align:left; text-transform:uppercase; letter-spacing:.05em;}
+  table.entry2 th.e2-day{text-align:center; background:#eee; border-bottom:none; font-size:9px;}
+  table.entry2 td{padding:5px 5px; border-bottom:1px solid #000; vertical-align:middle; color:#000;}
+  table.entry2 tr{page-break-inside:avoid; break-inside:avoid;}
+  table.entry2 thead{display:table-header-group;}
+  .e2-bib{display:inline-block; min-width:22px; text-align:center; border:1.5px solid #000; color:#000; font-weight:800; font-size:12px; padding:2px 4px; border-radius:3px;}
+  .e2-name{font-size:12px; font-weight:600; white-space:nowrap;}
+  .e2-time{display:block; width:105px; height:30px; border:1.5px solid #000; border-radius:4px; text-align:center; line-height:27px; font-family:var(--mono); font-size:12px; box-sizing:border-box;}
+  .e2-time.calc{width:70px; font-weight:700;}
+  .e2-laps{min-width:150px;}
+  .e2-lapline{display:flex; align-items:center; gap:3px; flex-wrap:wrap; margin:3px 0;}
+  .e2-lapline b{display:inline-block; width:34px; font-size:10px; text-transform:uppercase; letter-spacing:.05em;}
+  .e2-box{display:inline-flex; align-items:center; justify-content:center; width:19px; height:19px; border:1.5px solid #000; border-radius:3px; font-size:8px; color:#777; font-family:var(--mono); box-sizing:border-box;}
+  .e2-box.on{color:#000; font-size:13px; font-weight:800;}
+  table.entry2 td.e2-d1, table.entry2 th.e2-d1{border-right:2px dashed #000;}
   .total-cell{font-family:var(--mono); font-weight:800; color:var(--ok-bright); white-space:nowrap;}
   .rank-cell{font-family:var(--mono); font-weight:800; color:var(--bib); text-align:center; width:36px;}
 
@@ -274,6 +292,11 @@
     body.print-mode-results .entry-panel{display:none !important;}
     body.print-mode-results .swim-panel{display:none !important;}
 
+    /* Režim TISK ZADÁVACÍ TABULKY – VERZE 2 */
+    .entry2-panel{display:none !important;}
+    body.print-mode-entry2 section.panel:not(.entry2-panel){display:none !important;}
+    body.print-mode-entry2 .entry2-panel{display:block !important; page-break-inside:auto !important; break-inside:auto !important; background:#fff; border:none; padding:0; overflow:visible;}
+
     /* Režim TISK POŘADÍ DRUŽSTEV: jen panel družstev */
     body.print-mode-teams .entry-panel,
     body.print-mode-teams .swim-panel,
@@ -351,6 +374,7 @@
       <button class="action" onclick="printTeamsOnly()">🏆 Pořadí družstev</button>
       <button class="action" onclick="printSwimOnly()">🏊 Pořadí po plavání</button>
       <button class="action" onclick="printEntryForm()">📝 Zadávací tabulka</button>
+      <button class="action" onclick="printEntryForm2()">📝 Zadávací tabulka – verze 2</button>
     </div>
     <button class="action" onclick="exportCSV()">⭳ Export CSV</button>
     <button class="action danger" onclick="clearCategory()">Vymazat kategorii</button>
@@ -378,6 +402,10 @@
       <div class="lap-card" id="lapCardBike"></div>
       <div class="lap-card" id="lapCardRun"></div>
     </div>
+  </section>
+
+  <section class="panel entry2-panel" id="entry2Panel">
+    <div id="entry2Host"></div>
   </section>
 
   <section class="panel swim-panel">
@@ -1275,9 +1303,9 @@ document.getElementById("eventName").addEventListener("input", e=>{
   if(printTitle) printTitle.textContent = state.eventName || "Železný chovanec";
 });
 
-/* ---------- Tisk: čtyři režimy ---------- */
+/* ---------- Tisk: pět režimů ---------- */
 function clearPrintModes(){
-  document.body.classList.remove("print-mode-entry", "print-mode-swim", "print-mode-results", "print-mode-teams");
+  document.body.classList.remove("print-mode-entry", "print-mode-entry2", "print-mode-swim", "print-mode-results", "print-mode-teams");
   const pageStyle = document.getElementById("printPageStyle");
   if(pageStyle) pageStyle.textContent = "";
 }
@@ -1290,6 +1318,54 @@ function printResults(){
 function printTeamsOnly(){
   clearPrintModes();
   document.body.classList.add("print-mode-teams");
+  window.print();
+}
+/* Zadávací tabulka verze 2: jedna tabulka, pod sebou v řádku závodníka okruhy kola a běhu
+   (počet podle nastavení v aplikaci). Sestaví se těsně před tiskem. */
+function renderEntry2(){
+  const cat = state.activeCategory;
+  const rows = state.rows[cat];
+  const nB = lapCount("bike"), nR = lapCount("run");
+  const fastest = getFastestSwimmer(rows);
+  const boxes = (arr, n)=>{
+    let h = "";
+    for(let i=0;i<n;i++){
+      const on = !!(arr||[])[i];
+      h += `<span class="e2-box${on?" on":""}">${on?"✓":(i+1)}</span>`;
+    }
+    return h;
+  };
+  let html = `<table class="entry2"><thead>
+    <tr><th colspan="3" style="border:none"></th><th class="e2-day e2-d1">1. den — plavání</th><th colspan="4" class="e2-day">2. den — kolo, běh, cíl</th></tr>
+    <tr><th>St.č</th><th>Jméno</th><th>Ústav</th><th class="e2-d1">Plavání</th><th>St. Kolo</th><th>Dojezd</th><th>Okruhy</th><th>Výsledný čas</th></tr>
+  </thead><tbody>`;
+  rows.forEach(r=>{
+    let stK = "";
+    if(fastest && fastest.id === r.id) stK = "ref.";
+    else { const v = computeStKolo(rows, r); stK = v===null ? "" : formatTime(v); }
+    html += `<tr>
+      <td><span class="e2-bib">${r.bib}</span></td>
+      <td class="e2-name">${escapeAttr(r.name||"")}</td>
+      <td>${escapeAttr(r.club||"")}</td>
+      <td class="e2-d1"><span class="e2-time">${escapeAttr(r.plavani||"")}</span></td>
+      <td><span class="e2-time calc">${stK}</span></td>
+      <td><span class="e2-time">${escapeAttr(r.dojezd||"")}</span></td>
+      <td class="e2-laps">
+        <div class="e2-lapline"><b>Kolo</b>${boxes(r.bikeLaps, nB)}</div>
+        <div class="e2-lapline"><b>Běh</b>${boxes(r.runLaps, nR)}</div>
+      </td>
+      <td><span class="e2-time">${escapeAttr(r.vysledny||"")}</span></td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById("entry2Host").innerHTML = html;
+}
+function printEntryForm2(){
+  clearPrintModes();
+  renderEntry2();
+  document.body.classList.add("print-mode-entry2");
+  const pageStyle = document.getElementById("printPageStyle");
+  if(pageStyle) pageStyle.textContent = "@media print { @page { size: A4 landscape; margin: 10mm; } }";
   window.print();
 }
 function printSwimOnly(){
