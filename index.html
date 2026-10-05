@@ -165,6 +165,21 @@
   .row-del{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:16px; padding:2px 6px;}
   .row-del:hover{color:#e0755a;}
 
+  /* Diskvalifikace */
+  .dq-btn{
+    background:transparent; color:var(--text-dim); border:1px solid var(--line); border-radius:4px;
+    font-size:11px; font-weight:800; letter-spacing:.06em; padding:4px 7px; cursor:pointer; font-family:var(--sans);
+  }
+  .dq-btn:hover{border-color:#e0755a; color:#e0755a;}
+  .dq-btn.active{background:#e0755a; border-color:#e0755a; color:#1B1F1D;}
+  tr.dq-row td{background:rgba(224,117,90,0.07);}
+  tr.dq-row .bib-badge{background:var(--bib-dim);}
+  tr.dq-row input.cell, tr.dq-row input.time-cell{text-decoration:line-through; color:var(--text-dim);}
+  tr.dq-row .total-cell{color:var(--text-dim);}
+  .dq-label{
+    color:#e0755a; font-weight:800; font-size:11px; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap;
+  }
+
   .empty-hint{color:var(--text-dim); font-size:13px; padding:14px 4px; font-style:italic;}
 
   .team-note{font-size:12px; color:var(--text-dim); margin-top:8px;}
@@ -218,6 +233,9 @@
     h2.panel-title .n{background:#eee; color:#000;}
     .cat-chip{color:#000; background:#eee; border:1px solid #000;}
     .member-names{color:#000;}
+    .dq-label{color:#000;}
+    tr.dq-row td{background:#fff;}
+    tr.dq-row .bib-badge{background:#000;}
     a{display:none;}
 
     /* Ve výchozím stavu (bez JS třídy) skrýt zápisovou tabulku */
@@ -492,12 +510,26 @@ function newRow(){
     plavani: "",
     dojezd: "",
     vysledny: "",
+    dq: false,
     laps: Array.from({length:LAP_SLOTS}, ()=>false)
   };
 }
 
 function addRow(){
   state.rows[state.activeCategory].push(newRow());
+  persist();
+  renderAll();
+}
+
+/* ---------- Diskvalifikace ----------
+  Diskvalifikovaný závodník si zachová všechny zadané časy, ale nepočítá se do žádných
+  statistik (pořadí po plavání, jednotlivci, družstva, disciplíny). V pořadí jednotlivců
+  je uveden na konci jako diskvalifikovaný. Přepínač funguje oběma směry.
+*/
+function toggleDQ(id){
+  const row = state.rows[state.activeCategory].find(r=>r.id===id);
+  if(!row) return;
+  row.dq = !row.dq;
   persist();
   renderAll();
 }
@@ -654,13 +686,14 @@ function renderEntryHead(){
     <th class="day-label day1 day1-col-head">1. den — plavání</th>
     <th colspan="${2+LAP_SLOTS}" class="day-label day2">2. den — kolo, běh, cíl</th>
     <th class="del-col"></th>
+    <th class="del-col"></th>
   `;
   const head = document.getElementById("entryHeadRow");
   let html = `<th>St.č</th><th class="name-cell">Jméno</th><th class="club-cell">Ústav</th><th class="day1-col-head">Plavání</th><th class="st-kolo-head" title="Dopočítáno: zpoždění na kolo oproti nejrychlejšímu plavci">St. Kolo</th><th>Dojezd</th>`;
   for(let i=1;i<=LAP_SLOTS;i++){
     html += `<th class="laps-head">${i}</th>`;
   }
-  html += `<th>Výsledný čas</th><th class="del-col"></th>`;
+  html += `<th>Výsledný čas</th><th class="del-col" title="Diskvalifikace">DQ</th><th class="del-col"></th>`;
   head.innerHTML = html;
 }
 
@@ -674,6 +707,7 @@ function renderEntryBody(){
 
   rows.forEach(row=>{
     const tr = document.createElement("tr");
+    if(row.dq) tr.classList.add("dq-row");
 
     const bibTd = document.createElement("td");
     bibTd.innerHTML = `<span class="bib-badge">${row.bib}</span>`;
@@ -728,6 +762,12 @@ function renderEntryBody(){
     vysledTd.innerHTML = timeInputHTML(row.vysledny);
     bindTimeInput(vysledTd.querySelector("input"), v=>{ row.vysledny = v; persist(); renderRankings(); });
     tr.appendChild(vysledTd);
+
+    const dqTd = document.createElement("td");
+    dqTd.className = "del-col";
+    dqTd.innerHTML = `<button class="dq-btn${row.dq?" active":""}" title="${row.dq?"Zrušit diskvalifikaci":"Diskvalifikovat závodníka"}">DQ</button>`;
+    dqTd.querySelector("button").onclick = ()=>toggleDQ(row.id);
+    tr.appendChild(dqTd);
 
     const delTd = document.createElement("td");
     delTd.className = "del-col";
@@ -806,18 +846,22 @@ function renderRankings(){
 function renderSwimRanking(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
-  const withSwim = rows.filter(r=>parseTime(r.plavani)!==null);
+  const withSwim = rows.filter(r=>parseTime(r.plavani)!==null && !r.dq);
   withSwim.sort((a,b)=>parseTime(a.plavani)-parseTime(b.plavani));
+  const dqRows = rows.filter(r=>r.dq);
 
   const body = document.getElementById("swimBody");
   body.innerHTML = "";
   document.getElementById("swimCount").textContent = withSwim.length;
-  document.getElementById("swimEmptyHint").style.display = withSwim.length ? "none" : "block";
+  document.getElementById("swimEmptyHint").style.display = (withSwim.length || dqRows.length) ? "none" : "block";
 
-  const refSec = withSwim.length ? parseTime(withSwim[0].plavani) : null;
+  // Zpoždění se počítá od skutečně nejrychlejšího plavce (i kdyby byl později diskvalifikován),
+  // protože podle něj už byl nastaven start na kolo - čísla ostatních se tak zpětně nemění.
+  const fastest = getFastestSwimmer(rows);
+  const refSec = fastest ? parseTime(fastest.plavani) : null;
   withSwim.forEach((r,i)=>{
     const tr = document.createElement("tr");
-    const stKoloStr = i===0 ? "start jako první" : formatTime(parseTime(r.plavani) - refSec);
+    const stKoloStr = (fastest && fastest.id===r.id) ? "start jako první" : formatTime(parseTime(r.plavani) - refSec);
     tr.innerHTML = `
       <td class="rank-cell">${i+1}</td>
       <td><span class="bib-badge">${r.bib}</span></td>
@@ -825,6 +869,20 @@ function renderSwimRanking(){
       <td>${escapeHtml(r.club)}</td>
       <td class="total-cell">${escapeHtml(r.plavani)}</td>
       <td class="total-cell" style="color:var(--bib); font-weight:800;">${stKoloStr}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  dqRows.forEach(r=>{
+    const tr = document.createElement("tr");
+    tr.classList.add("dq-row");
+    tr.innerHTML = `
+      <td class="rank-cell">—</td>
+      <td><span class="bib-badge">${r.bib}</span></td>
+      <td>${escapeHtml(r.name)||"<em>bez jména</em>"}</td>
+      <td>${escapeHtml(r.club)}</td>
+      <td class="total-cell">${escapeHtml(r.plavani)||"—"}</td>
+      <td><span class="dq-label">Diskvalifikován</span></td>
     `;
     body.appendChild(tr);
   });
@@ -842,6 +900,7 @@ function renderCalc(){
     const calc = computeCalc(rows, row);
     const fastest = getFastestSwimmer(rows);
     const tr = document.createElement("tr");
+    if(row.dq) tr.classList.add("dq-row");
     let stKoloStr, koloStr, behStr, celkovyStr;
     if(calc === "invalid"){
       stKoloStr = koloStr = behStr = celkovyStr = "chyba";
@@ -853,6 +912,7 @@ function renderCalc(){
       behStr = formatTime(calc.beh);
       celkovyStr = formatTime(calc.celkovy);
     }
+    if(row.dq) celkovyStr = "DISKV.";
     tr.innerHTML = `
       <td><span class="bib-badge">${row.bib}</span></td>
       <td>${escapeHtml(row.name)||"<em>bez jména</em>"}</td>
@@ -873,13 +933,14 @@ function renderIndividual(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
   const computed = rows.map(r=>({row:r, total: computeTotal(r, rows)}))
-    .filter(x=>typeof x.total === "number");
+    .filter(x=>typeof x.total === "number" && !x.row.dq);
   computed.sort((a,b)=>a.total-b.total);
+  const dqRows = rows.filter(r=>r.dq);
 
   const body = document.getElementById("rankBody");
   body.innerHTML = "";
   document.getElementById("indivCount").textContent = computed.length;
-  document.getElementById("rankEmptyHint").style.display = computed.length ? "none" : "block";
+  document.getElementById("rankEmptyHint").style.display = (computed.length || dqRows.length) ? "none" : "block";
 
   computed.forEach((x, i)=>{
     const tr = document.createElement("tr");
@@ -892,6 +953,20 @@ function renderIndividual(){
     `;
     body.appendChild(tr);
   });
+
+  // Diskvalifikovaní na konci, bez pořadí a bez času
+  dqRows.forEach(r=>{
+    const tr = document.createElement("tr");
+    tr.classList.add("dq-row");
+    tr.innerHTML = `
+      <td class="rank-cell">—</td>
+      <td><span class="bib-badge">${r.bib}</span></td>
+      <td>${escapeHtml(r.name)||"<em>bez jména</em>"}</td>
+      <td>${escapeHtml(r.club)}</td>
+      <td><span class="dq-label">Diskvalifikován</span></td>
+    `;
+    body.appendChild(tr);
+  });
 }
 
 function renderDisciplineRankings(){
@@ -899,7 +974,7 @@ function renderDisciplineRankings(){
   const rows = state.rows[cat];
 
   // Plavání
-  const swim = rows.filter(r=>parseTime(r.plavani)!==null)
+  const swim = rows.filter(r=>parseTime(r.plavani)!==null && !r.dq)
     .map(r=>({row:r, t:parseTime(r.plavani)}))
     .sort((a,b)=>a.t-b.t);
   fillDisciplineTable("discSwimBody", "discSwimEmptyHint", swim);
@@ -907,6 +982,7 @@ function renderDisciplineRankings(){
   // Kolo a Běh (z přepočtu)
   const kolo = [], beh = [];
   rows.forEach(r=>{
+    if(r.dq) return;
     const calc = computeCalc(rows, r);
     if(calc && calc!=="invalid"){
       kolo.push({row:r, t:calc.kolo});
@@ -940,7 +1016,7 @@ function renderTeams(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
   const computed = rows.map(r=>({row:r, total: computeTotal(r, rows)}))
-    .filter(x=>typeof x.total === "number" && x.row.club && x.row.club.trim());
+    .filter(x=>typeof x.total === "number" && x.row.club && x.row.club.trim() && !x.row.dq);
 
   const byClub = {};
   computed.forEach(x=>{
@@ -1018,7 +1094,7 @@ function exportCSV(){
   const rows = state.rows[cat];
   let header = ["St.c","Jmeno","Ustav","Plavani","St.Kolo","Dojezd"];
   for(let i=1;i<=LAP_SLOTS;i++){ header.push(`Kolo-beh_${i}`); }
-  header.push("Vysledny_cas","Kolo","Beh","Celkovy_cas");
+  header.push("Vysledny_cas","Kolo","Beh","Celkovy_cas","Diskvalifikovan");
 
   const lines = [header.join(";")];
   const fastest = getFastestSwimmer(rows);
@@ -1030,7 +1106,7 @@ function exportCSV(){
     const celkovyStr = (calc && calc!=="invalid") ? formatTime(calc.celkovy) : (calc==="invalid" ? "CHYBA" : "");
     const vals = [r.bib, r.name, r.club, r.plavani, stKoloStr, r.dojezd];
     (r.laps||[]).forEach(checked=>{ vals.push(checked ? "X" : ""); });
-    vals.push(r.vysledny, koloStr, behStr, celkovyStr);
+    vals.push(r.vysledny, koloStr, behStr, celkovyStr, r.dq ? "ANO" : "");
     lines.push(vals.join(";"));
   });
 
