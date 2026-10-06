@@ -189,21 +189,21 @@
   .lap-count.done{color:var(--ok-bright);}
   /* Zadávací tabulka verze 2 (jen pro tisk): okruhy kola a běhu pod sebou přímo v řádku závodníka */
   .entry2-panel{display:none;}
-  table.entry2{border-collapse:collapse; width:100%; font-size:11px;}
-  table.entry2 th{font-size:10px; color:#000; padding:3px 5px; border-bottom:2px solid #000; text-align:left; text-transform:uppercase; letter-spacing:.05em;}
-  table.entry2 th.e2-day{text-align:center; background:#eee; border-bottom:none; font-size:9px;}
+  table.entry2{border-collapse:collapse; width:100%; font-size:13px;}
+  table.entry2 th{font-size:12px; color:#000; padding:3px 5px; border-bottom:2px solid #000; text-align:left; text-transform:uppercase; letter-spacing:.05em;}
+  table.entry2 th.e2-day{text-align:center; background:#eee; border-bottom:none; font-size:11px;}
   table.entry2 td{padding:5px 5px; border-bottom:1px solid #000; vertical-align:middle; color:#000;}
   table.entry2 tr{page-break-inside:avoid; break-inside:avoid;}
   table.entry2 thead{display:table-header-group;}
-  .e2-bib{display:inline-block; min-width:22px; text-align:center; border:1.5px solid #000; color:#000; font-weight:800; font-size:12px; padding:2px 4px; border-radius:3px;}
-  .e2-name{font-size:12px; font-weight:600; white-space:nowrap;}
-  .e2-time{display:block; width:105px; height:30px; border:1.5px solid #000; border-radius:4px; text-align:center; line-height:27px; font-family:var(--mono); font-size:12px; box-sizing:border-box;}
-  .e2-time.calc{width:70px; font-weight:700;}
+  .e2-bib{display:inline-block; min-width:22px; text-align:center; border:1.5px solid #000; color:#000; font-weight:800; font-size:14px; padding:2px 4px; border-radius:3px;}
+  .e2-name{font-size:14px; font-weight:600; white-space:nowrap;}
+  .e2-time{display:block; width:108px; height:30px; border:1.5px solid #000; border-radius:4px; text-align:center; line-height:26px; font-family:var(--mono); font-size:14px; box-sizing:border-box;}
+  .e2-time.calc{width:88px; font-weight:700;}
   .e2-laps{min-width:150px;}
   .e2-lapline{display:flex; align-items:center; gap:3px; flex-wrap:wrap; margin:3px 0;}
-  .e2-lapline b{display:inline-block; width:34px; font-size:10px; text-transform:uppercase; letter-spacing:.05em;}
-  .e2-box{display:inline-flex; align-items:center; justify-content:center; width:19px; height:19px; border:1.5px solid #000; border-radius:3px; font-size:8px; color:#777; font-family:var(--mono); box-sizing:border-box;}
-  .e2-box.on{color:#000; font-size:13px; font-weight:800;}
+  .e2-lapline b{display:inline-block; width:40px; font-size:12px; text-transform:uppercase; letter-spacing:.05em;}
+  .e2-box{display:inline-flex; align-items:center; justify-content:center; width:21px; height:21px; border:1.5px solid #000; border-radius:3px; font-size:10px; color:#777; font-family:var(--mono); box-sizing:border-box;}
+  .e2-box.on{color:#000; font-size:15px; font-weight:800;}
   table.entry2 td.e2-d1, table.entry2 th.e2-d1{border-right:2px dashed #000;}
   .opt-tag{font-size:9px; font-weight:600; letter-spacing:.04em; text-transform:none; color:var(--text-dim); border:1px solid var(--line); border-radius:3px; padding:1px 4px; margin-left:3px; vertical-align:1px;}
   .total-cell{font-family:var(--mono); font-weight:800; color:var(--ok-bright); white-space:nowrap;}
@@ -334,18 +334,18 @@
     body.print-mode-entry .entry-panel thead{display:table-header-group;}
     body.print-mode-entry .entry-panel tbody tr{page-break-inside:avoid;}
     body.print-mode-entry .entry-panel > div{overflow:visible !important; width:auto !important;}
-    body.print-mode-entry table{font-size:10px; width:100%; table-layout:auto;}
+    body.print-mode-entry table{font-size:12px; width:100%; table-layout:auto;}
     body.print-mode-entry thead th, body.print-mode-entry tbody td{padding:3px 4px;}
     body.print-mode-entry .name-cell{min-width:0; width:auto;}
     body.print-mode-entry .club-cell{min-width:0; width:auto;}
     /* Větší pole s časy, aby se do nich dalo pohodlně psát propiskou */
     body.print-mode-entry input.time-cell{
-      width:105px; height:27px; font-size:12px; padding:0 2px; border-width:1.5px !important;
+      width:108px; height:28px; font-size:14px; padding:0 2px; border-width:1.5px !important;
     }
     body.print-mode-entry .computed-cell{
-      width:70px; height:27px; line-height:25px; font-size:12px; padding:0 2px; box-sizing:border-box;
+      width:88px; height:28px; line-height:26px; font-size:14px; padding:0 2px; box-sizing:border-box;
     }
-    body.print-mode-entry input.cell{height:27px; padding:0 6px; font-size:11px; box-sizing:border-box;}
+    body.print-mode-entry input.cell{height:28px; padding:0 6px; font-size:13px; box-sizing:border-box;}
     body.print-mode-entry tbody td{padding-top:3px; padding-bottom:3px;}
     body.print-mode-entry .lap-check-cell{width:14px; padding:3px 1px !important;}
     body.print-mode-entry .lap-check-cell input[type=checkbox]{width:12px; height:12px; accent-color:#000;}
@@ -357,7 +357,7 @@
     body.print-mode-entry .computed-cell{
       border:1px solid #000 !important; background:#fff !important; color:#000 !important; font-style:normal !important;
     }
-    body.print-mode-entry .bib-badge{background:#000 !important; color:#fff !important; min-width:22px; height:18px; font-size:11px;}
+    body.print-mode-entry .bib-badge{background:#000 !important; color:#fff !important; min-width:24px; height:20px; font-size:13px;}
     body.print-mode-entry td.st-kolo-cell, body.print-mode-entry td.day1-col,
     body.print-mode-entry th.st-kolo-head, body.print-mode-entry th.day1-col-head{
       border-color:#000 !important;
@@ -377,6 +377,23 @@
       font-weight:800; padding:0 4px;
     }
     input[type=checkbox]{accent-color:#000;}
+
+    /* ZVĚTŠENÍ TEXTU PŘI TISKU (+2 oproti obrazovce) */
+    .print-title{font-size:26px;}
+    .print-sub{font-size:15px;}
+    table{font-size:15px;}
+    thead th{font-size:13px;}
+    h2.panel-title{font-size:15px;}
+    h2.panel-title .n, .cat-chip{font-size:13px;}
+    h2.panel-title .hint{font-size:14px;}
+    .bib-badge{font-size:15px; min-width:36px; height:26px;}
+    .member-names{font-size:14px;}
+    td.team-total-col{font-size:17px;}
+    .dq-label{font-size:13px;}
+    .team-note, .empty-hint{font-size:14px;}
+    .lap-card-title{font-size:14px;}
+    .lap-count{font-size:14px;}
+    .discipline-title{font-size:14px;}
     .e2-box{color:#555 !important;}
     .e2-box.on{color:#000 !important;}
   }
@@ -881,7 +898,7 @@ function renderEntryBody(){
     const fastest = getFastestSwimmer(rows);
     const stKolo = computeStKolo(rows, row);
     if(fastest && fastest.id === row.id){
-      stKoloTd.innerHTML = `<div class="computed-cell ref">ref.</div>`;
+      stKoloTd.innerHTML = `<div class="computed-cell">00:00:00</div>`;
     } else if(stKolo === null){
       stKoloTd.innerHTML = `<div class="computed-cell">—</div>`;
     } else {
@@ -927,7 +944,7 @@ function updateStKoloDisplay(){
     const el = document.getElementById("stkolo-" + row.id);
     if(!el) return;
     if(fastest && fastest.id === row.id){
-      el.innerHTML = `<div class="computed-cell ref">ref.</div>`;
+      el.innerHTML = `<div class="computed-cell">00:00:00</div>`;
     } else {
       const stKolo = computeStKolo(rows, row);
       el.innerHTML = stKolo===null ? `<div class="computed-cell">—</div>` : `<div class="computed-cell">${formatTime(stKolo)}</div>`;
@@ -1076,7 +1093,7 @@ function renderSwimRanking(){
   const refSec = fastest ? parseTime(fastest.plavani) : null;
   withSwim.forEach((r,i)=>{
     const tr = document.createElement("tr");
-    const stKoloStr = (fastest && fastest.id===r.id) ? "start jako první" : formatTime(parseTime(r.plavani) - refSec);
+    const stKoloStr = (fastest && fastest.id===r.id) ? "00:00:00" : formatTime(parseTime(r.plavani) - refSec);
     tr.innerHTML = `
       <td class="rank-cell">${i+1}</td>
       <td><span class="bib-badge">${r.bib}</span></td>
@@ -1122,7 +1139,7 @@ function renderCalc(){
     } else if(calc === null){
       stKoloStr = koloStr = behStr = celkovyStr = "—";
     } else {
-      stKoloStr = (fastest && fastest.id===row.id) ? "ref." : formatTime(calc.stKolo);
+      stKoloStr = (fastest && fastest.id===row.id) ? "00:00:00" : formatTime(calc.stKolo);
       koloStr = calc.kolo===null ? "—" : formatTime(calc.kolo);
       behStr = calc.beh===null ? "—" : formatTime(calc.beh);
       celkovyStr = formatTime(calc.celkovy);
@@ -1320,7 +1337,7 @@ function exportCSV(){
   const fastest = getFastestSwimmer(rows);
   rows.forEach(r=>{
     const calc = computeCalc(rows, r);
-    const stKoloStr = (fastest && fastest.id===r.id) ? "ref." : (calc && calc!=="invalid" ? formatTime(calc.stKolo) : "");
+    const stKoloStr = (fastest && fastest.id===r.id) ? "00:00:00" : (calc && calc!=="invalid" ? formatTime(calc.stKolo) : "");
     const koloStr = (calc && calc!=="invalid") ? (calc.kolo===null ? "" : formatTime(calc.kolo)) : (calc==="invalid" ? "CHYBA" : "");
     const behStr = (calc && calc!=="invalid") ? (calc.beh===null ? "" : formatTime(calc.beh)) : (calc==="invalid" ? "CHYBA" : "");
     const celkovyStr = (calc && calc!=="invalid") ? formatTime(calc.celkovy) : (calc==="invalid" ? "CHYBA" : "");
@@ -1387,7 +1404,7 @@ function renderEntry2(){
   </thead><tbody>`;
   rows.forEach(r=>{
     let stK = "";
-    if(fastest && fastest.id === r.id) stK = "ref.";
+    if(fastest && fastest.id === r.id) stK = "00:00:00";
     else { const v = computeStKolo(rows, r); stK = v===null ? "" : formatTime(v); }
     html += `<tr>
       <td><span class="e2-bib">${r.bib}</span></td>
