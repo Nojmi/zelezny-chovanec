@@ -500,11 +500,11 @@
   </section>
 
   <section class="panel no-print">
-    <h2 class="panel-title">Přepočet <span class="n" id="calcCount">0</span> <span class="hint">Kolo = Dojezd − St.Kolo · Běh = Výsledný čas − Dojezd (Kolo a Běh jen při zadaném Dojezdu) · Celkový čas = Plavání + Kolo + Běh</span></h2>
+    <h2 class="panel-title">Přepočet <span class="n" id="calcCount">0</span> <span class="hint">Kolo = Dojezd − St.Kolo · Běh = Výsledný čas − Dojezd (Kolo a Běh jen při zadaném Dojezdu)</span></h2>
     <div style="overflow-x:auto;">
       <table>
         <thead><tr>
-          <th>St.č</th><th class="name-cell">Jméno</th><th class="club-cell">Ústav</th><th>Plavání</th><th>St. Kolo</th><th>Dojezd</th><th>Kolo</th><th>Běh</th><th>Výsledný čas</th><th>Celkový čas</th>
+          <th>St.č</th><th class="name-cell">Jméno</th><th class="club-cell">Ústav</th><th>Plavání</th><th>St. Kolo</th><th>Dojezd</th><th>Kolo</th><th>Běh</th><th>Výsledný čas</th>
         </tr></thead>
         <tbody id="calcBody"></tbody>
       </table>
@@ -513,9 +513,9 @@
   </section>
 
   <section class="panel indiv-panel">
-    <h2 class="panel-title">Pořadí jednotlivců <span class="n" id="indivCount">0</span> <span class="cat-chip" id="indivCatChip"></span> <span class="hint">řazeno podle Celkového času</span></h2>
+    <h2 class="panel-title">Pořadí jednotlivců <span class="n" id="indivCount">0</span> <span class="cat-chip" id="indivCatChip"></span> <span class="hint">řazeno podle Výsledného času</span></h2>
     <table>
-      <thead><tr><th>Poř.</th><th>St.č</th><th>Jméno</th><th>Ústav</th><th>Celkový čas</th></tr></thead>
+      <thead><tr><th>Poř.</th><th>St.č</th><th>Jméno</th><th>Ústav</th><th>Výsledný čas</th></tr></thead>
       <tbody id="rankBody"></tbody>
     </table>
     <div class="empty-hint" id="rankEmptyHint">Žebříček se zobrazí po zadání Plavání a Výsledného času (Dojezd je nepovinný).</div>
@@ -524,7 +524,7 @@
   <section class="panel print-break team-panel">
     <h2 class="panel-title">Pořadí družstev <span class="n" id="teamCount">0</span> <span class="cat-chip" id="teamCatChip"></span></h2>
     <table>
-      <thead><tr><th>Poř.</th><th>Ústav</th><th>Počítaní závodníci a jejich časy</th><th class="team-total-col">Celkový čas družstva</th></tr></thead>
+      <thead><tr><th>Poř.</th><th>Ústav</th><th>Počítaní závodníci a jejich časy</th><th class="team-total-col">Součet výsledných časů</th></tr></thead>
       <tbody id="teamBody"></tbody>
     </table>
     <div class="team-note">Do týmového výsledku se počítají 3 nejrychlejší časy daného ústavu.</div>
@@ -859,8 +859,7 @@ function getFastestSwimmer(rows){
   St. Kolo  = Plavání(řádek) − Plavání(nejrychlejší plavec)   [nejrychlejší = 0, referenční]
   Kolo      = Dojezd − St. Kolo            (jen když je zadán Dojezd – ten je nepovinný)
   Běh       = Výsledný čas − Dojezd        (jen když je zadán Dojezd)
-  Celkový čas = Plavání + Kolo + Běh  =  Plavání(nejrychlejší) + Výsledný čas
-  Celkový čas tedy Dojezd nepotřebuje: stačí Plavání a Výsledný čas.
+  Pořadí jednotlivců i družstev rozhoduje VÝSLEDNÝ ČAS (plavání slouží jen k určení startovního pořadí a St. Kola).
 */
 function computeCalc(rows, row){
   if(!rows || !rows.length) return null;
@@ -880,18 +879,16 @@ function computeCalc(rows, row){
   if(row.dojezd && row.dojezd.trim() && dojezd===null) return "invalid";
   if(row.vysledny && row.vysledny.trim() && vysledny===null) return "invalid";
 
-  // Dojezd je nepovinný (mezičas na kole nemusí být znám). Celkový čas potřebuje jen Plavání
-  // (vlastní i nejrychlejšího plavce) a Výsledný čas.
+  // Dojezd je nepovinný (mezičas na kole nemusí být znám).
   if(pOwn===null || vysledny===null || pRef===null) return null;
 
   const stKolo = (first.id === row.id) ? 0 : (pOwn - pRef);
-  const celkovy = pOwn + (vysledny - stKolo);   // = Plavání + Kolo + Běh
   let kolo = null, beh = null;
   if(dojezd !== null){
     kolo = dojezd - stKolo;
     beh = vysledny - dojezd;
   }
-  return { stKolo, kolo, beh, celkovy };
+  return { stKolo, kolo, beh };
 }
 
 /* ---------- St. Kolo (dopočítáno) ----------
@@ -908,12 +905,13 @@ function computeStKolo(rows, row){
   return ownSec - refSec;
 }
 
-/* ---------- Computation (kompatibilita - Celkový čas jako číslo v sekundách) ---------- */
+/* ---------- Pořadí: Výsledný čas v sekundách ---------- */
 function computeTotal(row, rows){
-  const calc = computeCalc(rows, row);
-  if(calc === "invalid") return "invalid";
-  if(calc === null) return null;
-  return calc.celkovy;
+  // Rozhodující je Výsledný čas (nezávisí na plavání).
+  const v = row.vysledny;
+  if(!v || !v.trim()) return null;
+  const t = parseTime(v);
+  return t === null ? "invalid" : t;
 }
 
 /* ---------- Rendering ---------- */
@@ -1220,18 +1218,16 @@ function renderCalc(){
     const fastest = getFastestSwimmer(rows);
     const tr = document.createElement("tr");
     if(row.dq) tr.classList.add("dq-row");
-    let stKoloStr, koloStr, behStr, celkovyStr;
+    let stKoloStr, koloStr, behStr;
     if(calc === "invalid"){
-      stKoloStr = koloStr = behStr = celkovyStr = "chyba";
+      stKoloStr = koloStr = behStr = "chyba";
     } else if(calc === null){
-      stKoloStr = koloStr = behStr = celkovyStr = "—";
+      stKoloStr = koloStr = behStr = "—";
     } else {
       stKoloStr = (fastest && fastest.id===row.id) ? "00:00:00" : formatTime(calc.stKolo);
       koloStr = calc.kolo===null ? "—" : formatTime(calc.kolo);
       behStr = calc.beh===null ? "—" : formatTime(calc.beh);
-      celkovyStr = formatTime(calc.celkovy);
     }
-    if(row.dq) celkovyStr = "DISKV.";
     tr.innerHTML = `
       <td><span class="bib-badge">${bibLabel(row.bib)}</span></td>
       <td>${escapeHtml(row.name)||"<em>bez jména</em>"}</td>
@@ -1241,8 +1237,7 @@ function renderCalc(){
       <td class="total-cell">${escapeHtml(row.dojezd)||"—"}</td>
       <td class="total-cell">${koloStr}</td>
       <td class="total-cell">${behStr}</td>
-      <td class="total-cell">${escapeHtml(row.vysledny)||"—"}</td>
-      <td class="total-cell" style="color:var(--bib); font-weight:800;">${celkovyStr}</td>
+      <td class="total-cell" style="color:var(--bib); font-weight:800;">${row.dq ? "DISKV." : (escapeHtml(row.vysledny)||"—")}</td>
     `;
     body.appendChild(tr);
   });
@@ -1418,7 +1413,7 @@ function exportCSV(){
   const nB = lapCount("bike"), nR = lapCount("run");
   for(let i=1;i<=nB;i++){ header.push(`Kolo_okruh_${i}`); }
   for(let i=1;i<=nR;i++){ header.push(`Beh_okruh_${i}`); }
-  header.push("Vysledny_cas","Kolo","Beh","Celkovy_cas","Diskvalifikovan");
+  header.push("Vysledny_cas","Kolo","Beh","Diskvalifikovan");
 
   const lines = [header.join(";")];
   const fastest = getFastestSwimmer(rows);
@@ -1427,11 +1422,10 @@ function exportCSV(){
     const stKoloStr = (fastest && fastest.id===r.id) ? "00:00:00" : (calc && calc!=="invalid" ? formatTime(calc.stKolo) : "");
     const koloStr = (calc && calc!=="invalid") ? (calc.kolo===null ? "" : formatTime(calc.kolo)) : (calc==="invalid" ? "CHYBA" : "");
     const behStr = (calc && calc!=="invalid") ? (calc.beh===null ? "" : formatTime(calc.beh)) : (calc==="invalid" ? "CHYBA" : "");
-    const celkovyStr = (calc && calc!=="invalid") ? formatTime(calc.celkovy) : (calc==="invalid" ? "CHYBA" : "");
     const vals = [bibCsv(r.bib), r.name, r.club, r.plavani, stKoloStr, r.dojezd];
     for(let i=0;i<nB;i++) vals.push((r.bikeLaps||[])[i] ? "X" : "");
     for(let i=0;i<nR;i++) vals.push((r.runLaps||[])[i] ? "X" : "");
-    vals.push(r.vysledny, koloStr, behStr, celkovyStr, r.dq ? "ANO" : "");
+    vals.push(r.vysledny, koloStr, behStr, r.dq ? "ANO" : "");
     lines.push(vals.join(";"));
   });
 
