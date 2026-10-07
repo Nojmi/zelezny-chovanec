@@ -378,14 +378,12 @@
     body.print-mode-entry input.cell{height:28px; padding:0 6px; font-size:13px; box-sizing:border-box;}
     body.print-mode-entry tbody td{padding-top:3px; padding-bottom:3px;}
     /* okruhy: jméno nemá zabírat zbytek šířky, ať jsou políčka hned vedle jména */
-    body.print-mode-entry .lap-card table{width:100%; table-layout:fixed;}
-    body.print-mode-entry .lap-card th:first-child, body.print-mode-entry .lap-card td:first-child{width:14mm;}
-    body.print-mode-entry .lap-card th:nth-child(2){width:62mm;}
-    body.print-mode-entry .lap-card th:last-child{width:22mm;}
-    body.print-mode-entry .lap-card[data-many="1"] th:nth-child(2){width:42mm;}
+    /* kompaktní tabulka okruhů: rámeček obepíná jen tabulku a celek je vystředěný na stránce */
+    body.print-mode-entry .laps-grid{display:flex; flex-direction:column; align-items:center;}
+    body.print-mode-entry .laps-panel .panel-title{justify-content:center; text-align:center;}
+    body.print-mode-entry .lap-card{width:fit-content; max-width:100%; margin:0 auto;}
+    body.print-mode-entry .lap-card table{width:auto; table-layout:auto;}
     body.print-mode-entry .lap-card th.laps-head, body.print-mode-entry .lap-check-cell{text-align:center;}
-    body.print-mode-entry .lap-card[data-size="l"] .lap-check-cell input[type=checkbox]{width:17px; height:17px;}
-    body.print-mode-entry .lap-card[data-size="m"] .lap-check-cell input[type=checkbox]{width:16px; height:16px;}
     body.print-mode-entry .lap-card th, body.print-mode-entry .lap-card td{padding-left:3px; padding-right:3px;}
     body.print-mode-entry .lap-name{width:62mm; min-width:62mm; max-width:62mm; overflow:hidden; text-overflow:ellipsis; padding-right:6px !important;}
     body.print-mode-entry .lap-check-cell{width:auto; padding:4px 3px !important;}
