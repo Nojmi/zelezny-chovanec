@@ -69,7 +69,34 @@
   .status-pill{
     margin-left:auto; font-size:14px; color:var(--text-dim); display:flex; align-items:center; gap:6px;
   }
-  .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-bright); box-shadow:0 0 6px var(--ok-bright);}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-bright); box-shadow:0 0 6px var(--ok-bright); flex:none;}
+  .dot.warn{background:var(--warn); box-shadow:0 0 6px var(--warn);}
+  .dot.off{background:#7b8580; box-shadow:none;}
+  .dot.err{background:#e0755a; box-shadow:0 0 6px #e0755a;}
+  .pill-btn{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:5px;
+    font-size:13px; padding:3px 9px; cursor:pointer; font-family:var(--sans); margin-left:4px;
+  }
+  .pill-btn:hover{border-color:var(--bib); color:var(--bib);}
+  [hidden]{display:none !important;}
+  .cloud-overlay{
+    position:fixed; inset:0; background:rgba(10,12,11,0.82); z-index:1000;
+    display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .cloud-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:24px;
+    width:100%; max-width:440px; display:flex; flex-direction:column; gap:12px; box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  .cloud-card h2{margin:0; font-size:22px;}
+  .cloud-card p{margin:0; color:var(--text-dim); font-size:15px; line-height:1.5;}
+  .cloud-card label{display:flex; flex-direction:column; gap:4px; font-size:14px; color:var(--text-dim);}
+  .cloud-card input{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:5px;
+    padding:10px 11px; font-size:16px; font-family:var(--sans);
+  }
+  .cloud-card input:focus{outline:none; border-color:var(--bib);}
+  .cloud-card .action{justify-content:center; text-align:center;}
+  .cloud-err{color:#e0755a; font-size:14px; min-height:18px;}
 
   .print-group{
     display:flex; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--line);
@@ -291,6 +318,7 @@
     .cat-chip{color:#000; background:#eee; border:1px solid #000;}
     .member-names{color:#000;}
     .dq-label{color:#000;}
+    .cloud-overlay, #cloudStatus{display:none !important;}
     .lap-stepper, .lap-preview{display:none !important;}
     .lap-card-scroll{display:block !important;}
     .lap-card{background:#fff; border:1px solid #000; break-inside:avoid; page-break-inside:avoid;}
@@ -430,7 +458,7 @@
     <button class="action" onclick="exportCSV()">⭳ Export CSV</button>
     <button class="action danger" onclick="clearCategory()">Vymazat kategorii</button>
     <button class="action" onclick="loadTestData()">👤 Vyplnit testovací data</button>
-    <div class="status-pill"><span class="dot"></span> uloženo v zařízení (offline)</div>
+    <div class="status-pill no-print" id="cloudStatus"><span class="dot off"></span> uloženo v zařízení</div>
   </div>
 
   <section class="panel entry-panel">
@@ -536,6 +564,26 @@
   po skončení závodu, nebo commitni exportovaný soubor do repozitáře. · Prototyp appky „Železný chovanec“.
 </footer>
 
+<div class="cloud-overlay" id="loginOverlay" hidden>
+  <form class="cloud-card" id="loginForm">
+    <h2>Přihlášení</h2>
+    <p>Po přihlášení se data ukládají online a jsou stejná na všech zařízeních. Funguje i bez signálu, změny se odešlou po připojení.</p>
+    <label>E-mail<input type="email" id="loginEmail" autocomplete="username" required></label>
+    <label>Heslo<input type="password" id="loginPass" autocomplete="current-password" required></label>
+    <div class="cloud-err" id="loginErr"></div>
+    <button class="action primary" type="submit" id="loginBtn">Přihlásit</button>
+    <button class="action" type="button" onclick="loginSkip()">Pokračovat bez přihlášení (jen v tomto zařízení)</button>
+  </form>
+</div>
+<div class="cloud-overlay" id="linkOverlay" hidden>
+  <div class="cloud-card">
+    <h2>Data v tomto zařízení</h2>
+    <p id="linkText"></p>
+    <button class="action primary" type="button" id="linkBtnA"></button>
+    <button class="action" type="button" id="linkBtnB"></button>
+  </div>
+</div>
+
 <script>
 /* ---------- Data model ----------
   row = {
@@ -597,6 +645,11 @@ function clampLaps(n){
 }
 
 function persist(){
+  persistLocal();
+  cloudNotify();
+}
+
+function persistLocal(){
   localStorage.setItem(STORAGE_PREFIX + "eventName", state.eventName);
   localStorage.setItem(STORAGE_PREFIX + "activeCategory", state.activeCategory);
   CATEGORIES.forEach(cat=>{
@@ -1447,8 +1500,428 @@ window.addEventListener("afterprint", ()=>{
   clearPrintModes();
 });
 
+
+/* ============================================================
+   ONLINE SYNCHRONIZACE (Firebase Firestore)
+   - Aplikace je pořád "local-first": data se ukládají do prohlížeče a po přihlášení
+     se navíc synchronizují do Firestore (kolekce races/current/rows + dokument races/current).
+   - Každý závodník je samostatný dokument, takže se dva lidé nepřepíšou, pokud upravují různé závodníky.
+   - Offline: Firestore si změny pamatuje v zařízení a po připojení je odešle.
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBk7ScaUm8hCohURppPNjYlBI5K9GIon1Q",
+  authDomain: "zeleznychovanec.firebaseapp.com",
+  projectId: "zeleznychovanec",
+  storageBucket: "zeleznychovanec.firebasestorage.app",
+  messagingSenderId: "557363229135",
+  appId: "1:557363229135:web:df03be9a1eb1630d93e2ba"
+};
+const FB_VERSION = "10.14.1";
+const DIRTY_MS = 4000;
+
+const Cloud = {
+  sdk:null, app:null, auth:null, db:null, user:null,
+  linked:false, deciding:false, applying:false, ready:false,
+  unsubRows:null, unsubMeta:null, snapRows:null, snapMeta:null,
+  lastPushed:{}, lastMeta:null, pending:{}, pendingMeta:null,
+  dirty:{}, deletedAt:{}, metaDirty:0,
+  flushTimer:null, renderTimer:null,
+  sdkFailed:false, localOnly:false, err:null, fromCache:false, hasPending:false
+};
+
+function rowToDoc(cat, r){
+  return {
+    cat, bib: r.bib||0, name: r.name||"", club: r.club||"",
+    plavani: r.plavani||"", dojezd: r.dojezd||"", vysledny: r.vysledny||"",
+    dq: !!r.dq,
+    bikeLaps: (r.bikeLaps||[]).map(Boolean),
+    runLaps: (r.runLaps||[]).map(Boolean)
+  };
+}
+function docToRow(id, d){
+  return {
+    id, bib: d.bib||0, name: d.name||"", club: d.club||"",
+    plavani: d.plavani||"", dojezd: d.dojezd||"", vysledny: d.vysledny||"",
+    dq: !!d.dq,
+    bikeLaps: Array.isArray(d.bikeLaps) ? d.bikeLaps.map(Boolean) : [],
+    runLaps: Array.isArray(d.runLaps) ? d.runLaps.map(Boolean) : []
+  };
+}
+function metaJson(){
+  const lapCfg = {};
+  CATEGORIES.forEach(c=>{ lapCfg[c] = {bike: state.lapCfg[c].bike, run: state.lapCfg[c].run}; });
+  return JSON.stringify({eventName: state.eventName||"", lapCfg});
+}
+function cloudIsDirty(id){ return !!Cloud.pending[id] || (Date.now() - (Cloud.dirty[id]||0) < DIRTY_MS); }
+function cloudIsDeleted(id){ return (Date.now() - (Cloud.deletedAt[id]||0)) < DIRTY_MS; }
+function cloudLinkKey(){ return STORAGE_PREFIX + "linked_" + (Cloud.user ? Cloud.user.uid : ""); }
+
+/* ----- načtení SDK a přihlášení ----- */
+async function cloudLoadSdk(){
+  if(window.__FB_MOCK) return window.__FB_MOCK;
+  const base = `https://www.gstatic.com/firebasejs/${FB_VERSION}/`;
+  const [a, au, fs] = await Promise.all([
+    import(base + "firebase-app.js"),
+    import(base + "firebase-auth.js"),
+    import(base + "firebase-firestore.js")
+  ]);
+  return Object.assign({}, a, au, fs);
+}
+
+async function cloudInit(){
+  try{
+    Cloud.sdk = await cloudLoadSdk();
+    Cloud.sdkFailed = false;
+  }catch(e){
+    Cloud.sdkFailed = true;
+    renderCloudStatus();
+    return;
+  }
+  const S = Cloud.sdk;
+  Cloud.app = S.initializeApp(FIREBASE_CONFIG);
+  try{
+    Cloud.db = S.initializeFirestore(Cloud.app, {
+      localCache: S.persistentLocalCache({tabManager: S.persistentMultipleTabManager()})
+    });
+  }catch(e){
+    Cloud.db = S.getFirestore(Cloud.app);
+  }
+  Cloud.auth = S.getAuth(Cloud.app);
+  S.onAuthStateChanged(Cloud.auth, user=>{
+    Cloud.user = user;
+    if(user){
+      hideEl("loginOverlay");
+      cloudStart();
+    }else{
+      cloudStop();
+      if(!Cloud.localOnly) showLogin();
+    }
+    renderCloudStatus();
+  });
+  renderCloudStatus();
+}
+
+function hideEl(id){ const e = document.getElementById(id); if(e) e.hidden = true; }
+function showEl(id){ const e = document.getElementById(id); if(e) e.hidden = false; }
+
+function showLogin(){
+  if(!Cloud.sdk){ alert("Online část se ještě nenačetla. Zkontrolujte připojení k internetu a obnovte stránku."); return; }
+  Cloud.localOnly = false;
+  document.getElementById("loginErr").textContent = "";
+  showEl("loginOverlay");
+  const em = document.getElementById("loginEmail");
+  if(em) setTimeout(()=>em.focus(), 50);
+}
+function loginSkip(){
+  Cloud.localOnly = true;
+  hideEl("loginOverlay");
+  renderCloudStatus();
+}
+function loginErrorText(e){
+  const c = (e && e.code) || "";
+  if(c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found") || c.includes("invalid-email")) return "Špatný e-mail nebo heslo.";
+  if(c.includes("network")) return "Bez připojení k internetu. Přihlášení vyžaduje signál.";
+  if(c.includes("too-many")) return "Příliš mnoho pokusů, zkuste to za chvíli.";
+  return "Přihlášení se nepodařilo (" + (c || e) + ").";
+}
+document.getElementById("loginForm").addEventListener("submit", async ev=>{
+  ev.preventDefault();
+  const btn = document.getElementById("loginBtn");
+  const errEl = document.getElementById("loginErr");
+  errEl.textContent = "";
+  btn.disabled = true;
+  try{
+    await Cloud.sdk.signInWithEmailAndPassword(Cloud.auth,
+      document.getElementById("loginEmail").value.trim(),
+      document.getElementById("loginPass").value);
+    document.getElementById("loginPass").value = "";
+  }catch(e){
+    errEl.textContent = loginErrorText(e);
+  }
+  btn.disabled = false;
+});
+async function cloudSignOut(){
+  if(!Cloud.sdk || !Cloud.user) return;
+  if(!confirm("Odhlásit? Data zůstanou v online databázi. Změny dělané po odhlášení se do ní nepřenesou.")) return;
+  try{ localStorage.removeItem(cloudLinkKey()); }catch(e){}
+  Cloud.linked = false;
+  try{ await Cloud.sdk.signOut(Cloud.auth); }catch(e){}
+}
+
+/* ----- napojení na databázi ----- */
+function cloudStart(){
+  cloudStop();
+  const S = Cloud.sdk, db = Cloud.db;
+  Cloud.linked = localStorage.getItem(cloudLinkKey()) === "1";
+  Cloud.err = null; Cloud.ready = false;
+  Cloud.lastPushed = {}; Cloud.lastMeta = null; Cloud.pending = {}; Cloud.pendingMeta = null;
+  Cloud.dirty = {}; Cloud.deletedAt = {}; Cloud.snapRows = null; Cloud.snapMeta = null;
+  const rowsCol = S.collection(db, "races", "current", "rows");
+  const metaRef = S.doc(db, "races", "current");
+  Cloud.unsubRows = S.onSnapshot(rowsCol, {includeMetadataChanges:true},
+    snap=>{ Cloud.snapRows = snap; cloudOnSnap(); }, cloudOnError);
+  Cloud.unsubMeta = S.onSnapshot(metaRef, {includeMetadataChanges:true},
+    snap=>{ Cloud.snapMeta = snap; cloudOnSnap(); }, cloudOnError);
+}
+function cloudStop(){
+  if(Cloud.unsubRows){ try{ Cloud.unsubRows(); }catch(e){} Cloud.unsubRows = null; }
+  if(Cloud.unsubMeta){ try{ Cloud.unsubMeta(); }catch(e){} Cloud.unsubMeta = null; }
+  clearTimeout(Cloud.flushTimer); Cloud.flushTimer = null;
+  Cloud.ready = false;
+}
+function cloudOnError(err){
+  Cloud.err = (err && (err.code || err.message)) || "neznámá chyba";
+  if(String(Cloud.err).includes("unavailable")) Cloud.err = null; // offline, není to chyba
+  renderCloudStatus();
+}
+
+function cloudOnSnap(){
+  const sr = Cloud.snapRows;
+  if(!sr){ renderCloudStatus(); return; }
+  Cloud.err = null;
+  Cloud.fromCache = sr.metadata.fromCache;
+  Cloud.hasPending = sr.metadata.hasPendingWrites || (Cloud.snapMeta && Cloud.snapMeta.metadata.hasPendingWrites);
+  if(!Cloud.linked){
+    // První napojení tohoto zařízení: rozhodnutí děláme až nad daty ze serveru.
+    if(sr.metadata.fromCache || !Cloud.snapMeta || Cloud.snapMeta.metadata.fromCache){ renderCloudStatus(); return; }
+    if(!Cloud.deciding) cloudDecideLink();
+    renderCloudStatus();
+    return;
+  }
+  cloudApply();
+  renderCloudStatus();
+}
+
+function cloudAskLink(localCount, remoteCount){
+  return new Promise(resolve=>{
+    const t = document.getElementById("linkText");
+    const a = document.getElementById("linkBtnA"), b = document.getElementById("linkBtnB");
+    const w = n => n + (n===1 ? " závodník" : (n>=2 && n<=4 ? " závodníci" : " závodníků"));
+    if(remoteCount === 0){
+      t.textContent = `V online databázi zatím nic není. V tomto zařízení je uloženo ${w(localCount)}. Chcete je nahrát online?`;
+      a.textContent = "Nahrát data z tohoto zařízení online";
+      b.textContent = "Zahodit místní data a začít s prázdnou databází";
+      a.onclick = ()=>{ hideEl("linkOverlay"); resolve("upload"); };
+      b.onclick = ()=>{ if(confirm("Opravdu zahodit data uložená v tomto zařízení?")){ hideEl("linkOverlay"); resolve("remote"); } };
+    }else{
+      t.textContent = `V online databázi je ${w(remoteCount)}, v tomto zařízení ${w(localCount)}. Doporučuji použít online data, místní se tím nahradí.`;
+      a.textContent = "Použít online data (místní zahodit)";
+      b.textContent = "Přidat místní data k online datům";
+      a.onclick = ()=>{ if(confirm("Opravdu zahodit data uložená v tomto zařízení?")){ hideEl("linkOverlay"); resolve("remote"); } };
+      b.onclick = ()=>{ hideEl("linkOverlay"); resolve("upload"); };
+    }
+    showEl("linkOverlay");
+  });
+}
+
+async function cloudDecideLink(){
+  Cloud.deciding = true;
+  renderCloudStatus();
+  const localCount = CATEGORIES.reduce((n,c)=>n + state.rows[c].length, 0);
+  const remoteCount = Cloud.snapRows ? Cloud.snapRows.size : 0;
+  let choice = "remote";
+  if(localCount > 0) choice = await cloudAskLink(localCount, remoteCount);
+  if(!Cloud.user){ Cloud.deciding = false; return; }
+  if(choice === "remote"){
+    CATEGORIES.forEach(c=>{ state.rows[c] = []; state.lapCfg[c] = {bike:DEFAULT_LAPS, run:DEFAULT_LAPS}; });
+    state.eventName = "";
+  }
+  Cloud.linked = true;
+  try{ localStorage.setItem(cloudLinkKey(), "1"); }catch(e){}
+  Cloud.deciding = false;
+  if(choice === "upload"){
+    // meta z cloudu nepřepisuje to, co teď nahráváme
+    Cloud.metaDirty = Date.now();
+    Cloud.lastMeta = null;
+    cloudNotify();
+  }
+  cloudApply(true);
+  renderCloudStatus();
+}
+
+/* ----- příjem změn ze serveru ----- */
+function cloudApply(force){
+  let changed = false, skipped = false;
+  Cloud.applying = true;
+  try{
+    const sr = Cloud.snapRows;
+    if(sr){
+      const remote = new Map();
+      sr.forEach(d=>remote.set(d.id, d));
+      CATEGORIES.forEach(cat=>{
+        const localById = {};
+        state.rows[cat].forEach(r=>{ localById[r.id] = r; });
+        const out = [];
+        remote.forEach((d, id)=>{
+          const data = d.data();
+          if(data.cat !== cat) return;
+          if(cloudIsDeleted(id)) return;
+          if(localById[id] && (cloudIsDirty(id) || d.metadata.hasPendingWrites)){
+            out.push(localById[id]);
+            skipped = true;
+          }else{
+            const row = docToRow(id, data);
+            out.push(row);
+            Cloud.lastPushed[id] = JSON.stringify(rowToDoc(cat, row));
+          }
+        });
+        state.rows[cat].forEach(r=>{
+          if(!remote.has(r.id) && cloudIsDirty(r.id) && !cloudIsDeleted(r.id)) out.push(r);
+        });
+        out.sort((a,b)=>(a.bib||0)-(b.bib||0));
+        const before = JSON.stringify(state.rows[cat].map(r=>rowToDoc(cat, r)));
+        const after = JSON.stringify(out.map(r=>rowToDoc(cat, r)));
+        if(before !== after || state.rows[cat].length !== out.length){ changed = true; }
+        state.rows[cat] = out;
+      });
+      Object.keys(Cloud.lastPushed).forEach(id=>{
+        if(!remote.has(id) && !cloudIsDirty(id)) delete Cloud.lastPushed[id];
+      });
+    }
+    const sm = Cloud.snapMeta;
+    if(sm && sm.exists() && !sm.metadata.hasPendingWrites && Cloud.pendingMeta === null &&
+       (Date.now() - Cloud.metaDirty) > DIRTY_MS){
+      const m = sm.data() || {};
+      if(typeof m.eventName === "string" && m.eventName !== state.eventName){ state.eventName = m.eventName; changed = true; }
+      if(m.lapCfg){
+        CATEGORIES.forEach(cat=>{
+          const c = m.lapCfg[cat];
+          if(!c) return;
+          const nb = clampLaps(c.bike), nr = clampLaps(c.run);
+          if(nb !== state.lapCfg[cat].bike || nr !== state.lapCfg[cat].run){
+            state.lapCfg[cat] = {bike:nb, run:nr}; changed = true;
+          }
+        });
+      }
+      Cloud.lastMeta = metaJson();
+    }
+  }finally{
+    Cloud.applying = false;
+  }
+  Cloud.ready = true;
+  if(skipped){ clearTimeout(Cloud.retryTimer); Cloud.retryTimer = setTimeout(()=>{ if(Cloud.linked) cloudApply(); }, DIRTY_MS + 200); }
+  if(changed || force){
+    persistLocal();
+    cloudRender();
+  }
+}
+
+// Překreslení nesmí vzít kurzor, když někdo právě píše.
+function cloudRender(){
+  const a = document.activeElement;
+  if(a && a.tagName === "INPUT" && a.type !== "checkbox"){
+    clearTimeout(Cloud.renderTimer);
+    Cloud.renderTimer = setTimeout(cloudRender, 1500);
+    return;
+  }
+  renderAll();
+}
+
+/* ----- odesílání změn na server ----- */
+function cloudNotify(){
+  if(!Cloud.user || !Cloud.linked || !Cloud.db || Cloud.applying || Cloud.deciding) return;
+  const now = Date.now();
+  const seen = new Set();
+  CATEGORIES.forEach(cat=>{
+    state.rows[cat].forEach(r=>{
+      seen.add(r.id);
+      const data = rowToDoc(cat, r), json = JSON.stringify(data);
+      if(Cloud.lastPushed[r.id] !== json){
+        Cloud.pending[r.id] = {op:"set", data, json};
+        Cloud.dirty[r.id] = now;
+        delete Cloud.deletedAt[r.id];
+      }else if(Cloud.pending[r.id]){
+        delete Cloud.pending[r.id];
+      }
+    });
+  });
+  Object.keys(Cloud.lastPushed).forEach(id=>{
+    if(!seen.has(id)){
+      Cloud.pending[id] = {op:"del"};
+      Cloud.dirty[id] = now;
+      Cloud.deletedAt[id] = now;
+    }
+  });
+  Object.keys(Cloud.pending).forEach(id=>{
+    if(Cloud.pending[id].op === "set" && !seen.has(id)) delete Cloud.pending[id];
+  });
+  const mj = metaJson();
+  if(mj !== Cloud.lastMeta){ Cloud.pendingMeta = mj; Cloud.metaDirty = now; }
+  else Cloud.pendingMeta = null;
+  clearTimeout(Cloud.flushTimer);
+  Cloud.flushTimer = setTimeout(cloudFlush, 300);
+  renderCloudStatus();
+}
+
+function cloudFlush(){
+  Cloud.flushTimer = null;
+  if(!Cloud.user || !Cloud.db) return;
+  const S = Cloud.sdk, db = Cloud.db;
+  const ids = Object.keys(Cloud.pending);
+  const metaJ = Cloud.pendingMeta;
+  try{
+    for(let i=0; i<ids.length; i+=400){
+      const part = ids.slice(i, i+400);
+      const batch = S.writeBatch(db);
+      part.forEach(id=>{
+        const p = Cloud.pending[id];
+        const ref = S.doc(db, "races", "current", "rows", id);
+        if(p.op === "set"){ batch.set(ref, p.data); Cloud.lastPushed[id] = p.json; }
+        else { batch.delete(ref); delete Cloud.lastPushed[id]; }
+        delete Cloud.pending[id];
+      });
+      Promise.resolve(batch.commit()).catch(cloudOnError);
+    }
+    if(metaJ !== null){
+      Promise.resolve(S.setDoc(S.doc(db, "races", "current"), JSON.parse(metaJ), {merge:true})).catch(cloudOnError);
+      Cloud.lastMeta = metaJ; Cloud.pendingMeta = null;
+    }
+  }catch(e){ cloudOnError(e); }
+  renderCloudStatus();
+}
+
+/* ----- stavový řádek ----- */
+function renderCloudStatus(){
+  const el = document.getElementById("cloudStatus");
+  if(!el) return;
+  let cls = "off", text = "", btn = "";
+  const offline = (typeof navigator !== "undefined" && navigator.onLine === false);
+  if(Cloud.sdkFailed){
+    cls = "warn"; text = "uloženo jen v tomto zařízení (online část se nenačetla)";
+  }else if(!Cloud.sdk){
+    cls = "off"; text = "uloženo v zařízení · načítám online část…";
+  }else if(!Cloud.user){
+    cls = "off"; text = "uloženo jen v tomto zařízení (nepřihlášeno)";
+    btn = `<button class="pill-btn" onclick="showLogin()">Přihlásit</button>`;
+  }else if(Cloud.err){
+    cls = "err";
+    text = String(Cloud.err).includes("permission") ? "online databáze odmítla přístup (zkontrolujte pravidla Firestore)" : "chyba synchronizace: " + Cloud.err;
+    btn = `<button class="pill-btn" onclick="cloudSignOut()">Odhlásit</button>`;
+  }else if(Cloud.deciding || !Cloud.linked){
+    cls = "warn"; text = "připojuji online databázi…";
+  }else if(offline || Cloud.fromCache){
+    cls = "warn"; text = "bez připojení · změny se odešlou, až bude signál";
+    btn = `<button class="pill-btn" onclick="cloudSignOut()">Odhlásit</button>`;
+  }else if(Cloud.hasPending || Object.keys(Cloud.pending).length || Cloud.pendingMeta !== null){
+    cls = "warn"; text = "odesílám změny…";
+    btn = `<button class="pill-btn" onclick="cloudSignOut()">Odhlásit</button>`;
+  }else{
+    cls = "ok"; text = "synchronizováno online · " + (Cloud.user.email || "");
+    btn = `<button class="pill-btn" onclick="cloudSignOut()">Odhlásit</button>`;
+  }
+  el.innerHTML = `<span class="dot ${cls}"></span> <span>${escapeHtml(text)}</span> ${btn}`;
+}
+window.addEventListener("online", ()=>{ renderCloudStatus(); if(Cloud.sdkFailed) cloudInit(); });
+window.addEventListener("offline", renderCloudStatus);
+
 loadState();
 renderAll();
+renderCloudStatus();
+cloudInit();
+
+if("serviceWorker" in navigator && location.protocol.indexOf("http") === 0){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
 </script>
 </body>
 </html>
