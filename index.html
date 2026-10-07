@@ -160,6 +160,8 @@
   input.time-cell{
     font-family:var(--mono); text-align:center; width:90px; letter-spacing:.02em;
   }
+  input.bib-input{width:76px; text-align:center; font-weight:800; color:var(--bib); -moz-appearance:textfield;}
+  input.bib-input::-webkit-outer-spin-button, input.bib-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   input.cell:focus, td input:focus{outline:none; border-color:var(--bib);}
   input.time-cell.invalid{border-color:#e0755a; background:rgba(224,117,90,0.12);}
 
@@ -447,6 +449,7 @@
 
   <div class="toolbar">
     <button class="action primary" onclick="addRow()">+ Přidat závodníka</button>
+    <button class="action" onclick="assignBibs()" title="Po doplavání seřadí závodníky podle plaveckého času a přidělí jim startovní čísla">🔢 Přidělit startovní čísla podle plavání</button>
     <div class="print-group">
       <span class="print-group-label">Tisk</span>
       <button class="action" onclick="printResults()">🖨 Výsledky jednotlivců</button>
@@ -598,10 +601,15 @@ const CATEGORIES = ["Žáci", "Mladší dorost", "Starší dorost"];
 const STORAGE_PREFIX = "zc_v2_";
 // První startovní číslo v každé kategorii
 const BIB_START = {"Žáci":1, "Mladší dorost":21, "Starší dorost":61};
-function nextBib(cat){
-  const rows = state.rows[cat] || [];
-  const base = BIB_START[cat] || 1;
-  return rows.length ? Math.max(base, Math.max(...rows.map(r=>r.bib||0))+1) : base;
+// Startovní čísla se přidělují až po plavání (tlačítko „Přidělit startovní čísla“).
+// Do té doby má závodník bib = 0 a zobrazuje se „—“.
+function bibLabel(b){ return (b && b>0) ? String(b) : "—"; }
+function bibCsv(b){ return (b && b>0) ? String(b) : ""; }
+function bibSortKey(r){ return (r.bib && r.bib>0) ? r.bib : Infinity; }
+function compareRowsByBib(a,b){
+  const ka = bibSortKey(a), kb = bibSortKey(b);
+  if(ka !== kb) return ka < kb ? -1 : 1;
+  return String(a.id) < String(b.id) ? -1 : (String(a.id) > String(b.id) ? 1 : 0);
 }
 const DEFAULT_LAPS = 8, MIN_LAPS = 1, MAX_LAPS = 30;
 const LAP_KINDS = {
@@ -714,7 +722,7 @@ function newRow(){
   const rows = state.rows[cat];
   return {
     id: "r"+Date.now()+Math.random().toString(36).slice(2,7),
-    bib: nextBib(cat),
+    bib: 0,
     name: "",
     club: "",
     plavani: "",
@@ -728,6 +736,32 @@ function newRow(){
 
 function addRow(){
   state.rows[state.activeCategory].push(newRow());
+  persist();
+  renderAll();
+}
+
+/* ---------- Přidělení startovních čísel po plavání ----------
+  Nejrychlejší plavec dostane první číslo kategorie (Žáci 1, Mladší dorost 21, Starší dorost 61),
+  další vzestupně. Stejný čas rozhodne pořadí zápisu. Bez plaveckého času a diskvalifikovaní
+  dostanou čísla až za ostatními. Lze spustit znovu (např. po opravě času).
+*/
+function assignBibs(){
+  const cat = state.activeCategory;
+  const rows = state.rows[cat];
+  if(!rows.length){ alert("V kategorii nejsou žádní závodníci."); return; }
+  const base = BIB_START[cat] || 1;
+  const withSwim = rows.map((r,i)=>({r,i,t:parseTime(r.plavani)})).filter(x=>x.t!==null && !x.r.dq);
+  const noSwim = rows.map((r,i)=>({r,i})).filter(x=>parseTime(x.r.plavani)===null && !x.r.dq);
+  const dq = rows.map((r,i)=>({r,i})).filter(x=>x.r.dq);
+  withSwim.sort((a,b)=>a.t-b.t || a.i-b.i);
+  const ordered = [...withSwim, ...noSwim, ...dq].map(x=>x.r);
+  const hasBibs = rows.some(r=>r.bib>0);
+  let msg = `Přidělit startovní čísla v kategorii „${cat}“ podle plaveckého času (${base}–${base+rows.length-1})?`;
+  if(hasBibs) msg += "\n\nPůvodní čísla se přepíšou.";
+  if(noSwim.length) msg += `\n\nPozor: ${noSwim.length} závodník(ů) nemá zadaný čas plavání a dostane čísla až na konci.`;
+  if(!confirm(msg)) return;
+  ordered.forEach((r,i)=>{ r.bib = base + i; });
+  state.rows[cat] = ordered;
   persist();
   renderAll();
 }
@@ -747,7 +781,7 @@ function toggleDQ(id){
 
 function deleteRow(id){
   const row = state.rows[state.activeCategory].find(r=>r.id===id);
-  const label = row && row.name && row.name.trim() ? row.name : `St.č ${row ? row.bib : ""}`;
+  const label = row && row.name && row.name.trim() ? row.name : (row && row.bib>0 ? `St.č ${row.bib}` : "bez jména");
   if(!confirm(`Opravdu smazat závodníka „${label}“? Tuto akci nelze vrátit zpět.`)) return;
   state.rows[state.activeCategory] = state.rows[state.activeCategory].filter(r=>r.id!==id);
   persist();
@@ -780,11 +814,10 @@ function loadTestData(){
   if(!confirm(`Vyplnit testovací data (jména, ústavy a časy, ${TEST_NAMES.length} závodníků) do kategorie „${state.activeCategory}“? Existující řádky zůstanou, testovací se přidají za ně.`)) return;
   [state.activeCategory].forEach(cat=>{
     const rows = state.rows[cat];
-    const startBib = nextBib(cat);
     TEST_NAMES.forEach((person, idx)=>{
       rows.push({
         id: "r"+Date.now()+Math.random().toString(36).slice(2,7)+idx,
-        bib: startBib + idx,
+        bib: 0,
         name: person.name,
         club: person.club,
         plavani: person.plavani,
@@ -924,7 +957,8 @@ function renderEntryBody(){
     if(row.dq) tr.classList.add("dq-row");
 
     const bibTd = document.createElement("td");
-    bibTd.innerHTML = `<span class="bib-badge">${row.bib}</span>`;
+    bibTd.innerHTML = `<input class="cell bib-input" type="number" inputmode="numeric" min="0" step="1" value="${row.bib>0?row.bib:""}" placeholder="—" title="Startovní číslo se přidělí tlačítkem po plavání; jde i přepsat ručně">`;
+    bibTd.querySelector("input").oninput = e=>{ row.bib = Math.max(0, parseInt(e.target.value,10) || 0); persist(); renderRankings(); renderLaps(); };
     tr.appendChild(bibTd);
 
     const nameTd = document.createElement("td");
@@ -1052,7 +1086,7 @@ function renderLapCard(kind){
     const tr = document.createElement("tr");
     if(row.dq) tr.classList.add("dq-row");
     const arr = row[info.field] || [];
-    let tds = `<td><span class="bib-badge">${row.bib}</span></td><td class="lap-name">${escapeAttr(row.name) || "<span style='color:var(--text-dim)'>—</span>"}</td>`;
+    let tds = `<td><span class="bib-badge">${bibLabel(row.bib)}</span></td><td class="lap-name">${escapeAttr(row.name) || "<span style='color:var(--text-dim)'>—</span>"}</td>`;
     for(let i=0;i<n;i++){
       tds += `<td class="lap-check-cell"><input type="checkbox" data-i="${i}" ${arr[i]?"checked":""}></td>`;
     }
@@ -1149,7 +1183,7 @@ function renderSwimRanking(){
     const stKoloStr = (fastest && fastest.id===r.id) ? "00:00:00" : formatTime(parseTime(r.plavani) - refSec);
     tr.innerHTML = `
       <td class="rank-cell">${i+1}</td>
-      <td><span class="bib-badge">${r.bib}</span></td>
+      <td><span class="bib-badge">${bibLabel(r.bib)}</span></td>
       <td>${escapeHtml(r.name)||"<em>bez jména</em>"}</td>
       <td>${escapeHtml(r.club)}</td>
       <td class="total-cell">${escapeHtml(r.plavani)}</td>
@@ -1163,7 +1197,7 @@ function renderSwimRanking(){
     tr.classList.add("dq-row");
     tr.innerHTML = `
       <td class="rank-cell">—</td>
-      <td><span class="bib-badge">${r.bib}</span></td>
+      <td><span class="bib-badge">${bibLabel(r.bib)}</span></td>
       <td>${escapeHtml(r.name)||"<em>bez jména</em>"}</td>
       <td>${escapeHtml(r.club)}</td>
       <td class="total-cell">${escapeHtml(r.plavani)||"—"}</td>
@@ -1199,7 +1233,7 @@ function renderCalc(){
     }
     if(row.dq) celkovyStr = "DISKV.";
     tr.innerHTML = `
-      <td><span class="bib-badge">${row.bib}</span></td>
+      <td><span class="bib-badge">${bibLabel(row.bib)}</span></td>
       <td>${escapeHtml(row.name)||"<em>bez jména</em>"}</td>
       <td>${escapeHtml(row.club)}</td>
       <td class="total-cell">${escapeHtml(row.plavani)||"—"}</td>
@@ -1231,7 +1265,7 @@ function renderIndividual(){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="rank-cell">${i+1}</td>
-      <td><span class="bib-badge">${x.row.bib}</span></td>
+      <td><span class="bib-badge">${bibLabel(x.row.bib)}</span></td>
       <td>${escapeHtml(x.row.name)||"<em>bez jména</em>"}</td>
       <td>${escapeHtml(x.row.club)}</td>
       <td class="total-cell">${formatTime(x.total)}</td>
@@ -1245,7 +1279,7 @@ function renderIndividual(){
     tr.classList.add("dq-row");
     tr.innerHTML = `
       <td class="rank-cell">—</td>
-      <td><span class="bib-badge">${r.bib}</span></td>
+      <td><span class="bib-badge">${bibLabel(r.bib)}</span></td>
       <td>${escapeHtml(r.name)||"<em>bez jména</em>"}</td>
       <td>${escapeHtml(r.club)}</td>
       <td><span class="dq-label">Diskvalifikován</span></td>
@@ -1289,7 +1323,7 @@ function fillDisciplineTable(bodyId, hintId, list){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="rank-cell">${i+1}</td>
-      <td><span class="bib-badge">${x.row.bib}</span></td>
+      <td><span class="bib-badge">${bibLabel(x.row.bib)}</span></td>
       <td>${escapeHtml(x.row.name)||"<em>bez jména</em>"}</td>
       <td class="total-cell">${formatTime(x.t)}</td>
     `;
@@ -1316,7 +1350,7 @@ function renderTeams(){
     const complete = counted.length >= 3;
     const sum = counted.reduce((acc,x)=>acc+x.total,0);
     const names = counted.map(x=>
-      `<div class="team-member"><span class="tm-name">${escapeHtml(x.row.name)||("#"+x.row.bib)}</span><span class="tm-time">${formatTime(x.total)}</span></div>`
+      `<div class="team-member"><span class="tm-name">${escapeHtml(x.row.name)||(x.row.bib>0?"#"+x.row.bib:"bez jména")}</span><span class="tm-time">${formatTime(x.total)}</span></div>`
     ).join("");
     return { club, names, total: sum, complete, count: counted.length };
   });
@@ -1394,7 +1428,7 @@ function exportCSV(){
     const koloStr = (calc && calc!=="invalid") ? (calc.kolo===null ? "" : formatTime(calc.kolo)) : (calc==="invalid" ? "CHYBA" : "");
     const behStr = (calc && calc!=="invalid") ? (calc.beh===null ? "" : formatTime(calc.beh)) : (calc==="invalid" ? "CHYBA" : "");
     const celkovyStr = (calc && calc!=="invalid") ? formatTime(calc.celkovy) : (calc==="invalid" ? "CHYBA" : "");
-    const vals = [r.bib, r.name, r.club, r.plavani, stKoloStr, r.dojezd];
+    const vals = [bibCsv(r.bib), r.name, r.club, r.plavani, stKoloStr, r.dojezd];
     for(let i=0;i<nB;i++) vals.push((r.bikeLaps||[])[i] ? "X" : "");
     for(let i=0;i<nR;i++) vals.push((r.runLaps||[])[i] ? "X" : "");
     vals.push(r.vysledny, koloStr, behStr, celkovyStr, r.dq ? "ANO" : "");
@@ -1460,7 +1494,7 @@ function renderEntry2(){
     if(fastest && fastest.id === r.id) stK = "00:00:00";
     else { const v = computeStKolo(rows, r); stK = v===null ? "" : formatTime(v); }
     html += `<tr>
-      <td><span class="e2-bib">${r.bib}</span></td>
+      <td><span class="e2-bib">${bibLabel(r.bib)}</span></td>
       <td class="e2-name">${escapeAttr(r.name||"")}</td>
       <td>${escapeAttr(r.club||"")}</td>
       <td class="e2-d1"><span class="e2-time">${escapeAttr(r.plavani||"")}</span></td>
@@ -1768,7 +1802,7 @@ function cloudApply(force){
         state.rows[cat].forEach(r=>{
           if(!remote.has(r.id) && cloudIsDirty(r.id) && !cloudIsDeleted(r.id)) out.push(r);
         });
-        out.sort((a,b)=>(a.bib||0)-(b.bib||0));
+        out.sort(compareRowsByBib);
         const before = JSON.stringify(state.rows[cat].map(r=>rowToDoc(cat, r)));
         const after = JSON.stringify(out.map(r=>rowToDoc(cat, r)));
         if(before !== after || state.rows[cat].length !== out.length){ changed = true; }
