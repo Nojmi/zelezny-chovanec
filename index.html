@@ -377,8 +377,18 @@
     }
     body.print-mode-entry input.cell{height:28px; padding:0 6px; font-size:13px; box-sizing:border-box;}
     body.print-mode-entry tbody td{padding-top:3px; padding-bottom:3px;}
-    body.print-mode-entry .lap-check-cell{width:14px; padding:3px 1px !important;}
-    body.print-mode-entry .lap-check-cell input[type=checkbox]{width:12px; height:12px; accent-color:#000;}
+    /* okruhy: jméno nemá zabírat zbytek šířky, ať jsou políčka hned vedle jména */
+    body.print-mode-entry .lap-card table{width:auto; table-layout:auto;}
+    body.print-mode-entry .lap-card th, body.print-mode-entry .lap-card td{padding-left:3px; padding-right:3px;}
+    body.print-mode-entry .lap-name{width:62mm; min-width:62mm; max-width:62mm; overflow:hidden; text-overflow:ellipsis; padding-right:6px !important;}
+    body.print-mode-entry .lap-check-cell{width:auto; padding:4px 3px !important;}
+    body.print-mode-entry .lap-check-cell input[type=checkbox]{width:15px; height:15px; accent-color:#000;}
+    body.print-mode-entry .lap-card[data-many="1"] .lap-name{width:42mm; min-width:42mm; max-width:42mm;}
+    body.print-mode-entry .lap-card[data-many="1"] .lap-check-cell{padding:4px 1px !important;}
+    body.print-mode-entry .lap-card[data-many="1"] .lap-check-cell input[type=checkbox]{width:12px; height:12px;}
+    body.print-mode-entry .lap-card[data-many="1"] th.laps-head{padding-left:0; padding-right:0; font-size:10px;}
+    body.print-mode-entry .lap-card .lap-count{padding-left:8px !important; text-align:left; width:auto;}
+    body.print-mode-entry .lap-card th[style*="right"]{text-align:left !important; padding-left:8px;}
     body.print-mode-entry .del-col{display:none !important;}
     body.print-mode-entry .entry-panel input,
     body.print-mode-entry .entry-panel td input{
@@ -1076,6 +1086,7 @@ function renderLapCard(kind){
   for(let i=1;i<=n;i++) html += `<th class="laps-head">${i}</th>`;
   html += `<th style="text-align:right">Hotovo</th></tr></thead><tbody></tbody></table></div>`;
   card.innerHTML = html;
+  card.dataset.many = n > 24 ? "1" : "0";
   card.querySelectorAll(".lap-stepper button").forEach(btn=>{
     btn.onclick = ()=>changeLaps(kind, parseInt(btn.dataset.d,10));
   });
