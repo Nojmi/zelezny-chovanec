@@ -1794,9 +1794,22 @@ function cloudApply(force){
             out.push(localById[id]);
             skipped = true;
           }else{
-            const row = docToRow(id, data);
+            // Důležité: zachovat tentýž objekt řádku, na který jsou navázaná pole v tabulce.
+            // Při jeho nahrazení by se psaní ukládalo do "osiřelého" objektu a ztratilo se.
+            const fresh = docToRow(id, data);
+            const freshJson = JSON.stringify(rowToDoc(cat, fresh));
+            let row = localById[id];
+            if(row){
+              if(JSON.stringify(rowToDoc(cat, row)) !== freshJson){
+                Object.assign(row, fresh);
+                changed = true;
+              }
+            }else{
+              row = fresh;
+              changed = true;
+            }
             out.push(row);
-            Cloud.lastPushed[id] = JSON.stringify(rowToDoc(cat, row));
+            Cloud.lastPushed[id] = freshJson;
           }
         });
         state.rows[cat].forEach(r=>{
