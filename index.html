@@ -195,6 +195,7 @@
   .lap-card{border:1px solid var(--line); border-radius:8px; background:var(--panel-2); padding:12px 12px 4px; min-width:0;}
   .lap-card.wide{grid-column:1/-1;}
   .lap-card-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
+  .lap-cat-print{display:none;}
   .lap-card-title{font-size:14px; text-transform:uppercase; letter-spacing:.1em; font-weight:800; color:var(--bib);}
   .lap-stepper{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:14px; color:var(--text-dim);}
   .lap-stepper button{
@@ -327,6 +328,7 @@
     .lap-card.wide, .laps-grid{grid-column:auto;}
     body.print-mode-entry .laps-grid{grid-template-columns:1fr; gap:10px;}
     body.print-mode-entry .lap-card-title{color:#000;}
+    body.print-mode-entry .lap-cat-print{display:inline; text-transform:uppercase;}
     body.print-mode-entry .lap-count{color:#000 !important;}
     body.print-mode-entry .laps-panel{page-break-before:always;}
     tr.dq-row td{background:#fff;}
@@ -1086,7 +1088,7 @@ function renderLapCard(kind){
   const rows = state.rows[state.activeCategory];
   const n = lapCount(kind);
   let html = `<div class="lap-card-head">
-      <span class="lap-card-title">${info.title}</span>
+      <span class="lap-card-title">${info.title}<span class="lap-cat-print"> — ${escapeHtml(state.activeCategory)}</span></span>
       <span class="lap-stepper">Počet okruhů
         <button type="button" data-d="-1" title="Ubrat okruh" ${n<=MIN_LAPS?"disabled":""}>−</button>
         <span class="lap-n">${n}</span>
