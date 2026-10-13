@@ -161,6 +161,7 @@
     font-family:var(--mono); text-align:center; width:90px; letter-spacing:.02em;
   }
   input.bib-input{width:76px; text-align:center; font-weight:800; color:var(--bib); -moz-appearance:textfield;}
+  input.bib-input.invalid{border-color:#e0755a; background:rgba(224,117,90,0.18); color:#ff9b82;}
   input.bib-input::-webkit-outer-spin-button, input.bib-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   input.cell:focus, td input:focus{outline:none; border-color:var(--bib);}
   input.time-cell.invalid{border-color:#e0755a; background:rgba(224,117,90,0.12);}
@@ -624,7 +625,7 @@
 const CATEGORIES = ["Žáci", "Mladší dorost", "Starší dorost"];
 const STORAGE_PREFIX = "zc_v2_";
 // První startovní číslo v každé kategorii
-const BIB_START = {"Žáci":1, "Mladší dorost":21, "Starší dorost":61};
+const BIB_RANGE = {"Žáci":[1,9], "Mladší dorost":[11,39], "Starší dorost":[41,69]};
 // Startovní čísla se přidělují až po plavání (tlačítko „Přidělit startovní čísla“).
 // Do té doby má závodník bib = 0 a zobrazuje se „—“.
 function bibLabel(b){ return (b && b>0) ? String(b) : "—"; }
@@ -764,6 +765,19 @@ function addRow(){
   renderAll();
 }
 
+/* Stejné startovní číslo u dvou závodníků v jedné kategorii: červené zvýraznění. */
+function markBibDupes(){
+  const rows = state.rows[state.activeCategory];
+  const count = {};
+  rows.forEach(r=>{ if(r.bib>0) count[r.bib] = (count[r.bib]||0)+1; });
+  document.querySelectorAll("#entryBody input.bib-input").forEach(inp=>{
+    const r = rows.find(x=>x.id===inp.dataset.id);
+    const dup = !!(r && r.bib>0 && count[r.bib]>1);
+    inp.classList.toggle("invalid", dup);
+    inp.title = dup ? "Pozor: stejné startovní číslo má v kategorii víc závodníků" : "Startovní číslo (jde přepsat ručně; ručně zadané je nadřazené tlačítku Přidělit)";
+  });
+}
+
 /* ---------- Přidělení startovních čísel po plavání ----------
   Nejrychlejší plavec dostane první číslo kategorie (Žáci 1, Mladší dorost 21, Starší dorost 61),
   další vzestupně. Stejný čas rozhodne pořadí zápisu. Bez plaveckého času a diskvalifikovaní
@@ -773,19 +787,28 @@ function assignBibs(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
   if(!rows.length){ alert("V kategorii nejsou žádní závodníci."); return; }
-  const base = BIB_START[cat] || 1;
-  const withSwim = rows.map((r,i)=>({r,i,t:parseTime(r.plavani)})).filter(x=>x.t!==null && !x.r.dq);
-  const noSwim = rows.map((r,i)=>({r,i})).filter(x=>parseTime(x.r.plavani)===null && !x.r.dq);
-  const dq = rows.map((r,i)=>({r,i})).filter(x=>x.r.dq);
-  withSwim.sort((a,b)=>a.t-b.t || a.i-b.i);
-  const ordered = [...withSwim, ...noSwim, ...dq].map(x=>x.r);
-  const hasBibs = rows.some(r=>r.bib>0);
-  let msg = `Přidělit startovní čísla v kategorii „${cat}“ podle plaveckého času (${base}–${base+rows.length-1})?`;
-  if(hasBibs) msg += "\n\nPůvodní čísla se přepíšou.";
+  const [lo, hi] = BIB_RANGE[cat] || [1, 99];
+  // Ručně zadaná čísla jsou nadřazená: zůstanou beze změny a ostatní závodníci je přeskočí.
+  const manual = rows.filter(r=>r.bibManual && r.bib>0);
+  const taken = new Set(manual.map(r=>r.bib));
+  const auto = rows.filter(r=>!(r.bibManual && r.bib>0));
+  const idx = new Map(rows.map((r,i)=>[r.id,i]));
+  const withSwim = auto.filter(r=>parseTime(r.plavani)!==null && !r.dq).map(r=>({r,t:parseTime(r.plavani)}));
+  withSwim.sort((a,b)=>a.t-b.t || idx.get(a.r.id)-idx.get(b.r.id));
+  const noSwim = auto.filter(r=>parseTime(r.plavani)===null && !r.dq);
+  const dq = auto.filter(r=>r.dq);
+  const ordered = [...withSwim.map(x=>x.r), ...noSwim, ...dq];
+  // volná čísla v pásmu kategorie, pokud dojdou, pokračuje se nad pásmem
+  const free = [];
+  for(let n=lo; free.length < ordered.length; n++){ if(!taken.has(n)) free.push(n); }
+  const over = free.filter(n=>n>hi).length;
+  let msg = `Přidělit startovní čísla v kategorii „${cat}“ podle plaveckého času (pásmo ${lo}–${hi})?`;
+  if(manual.length) msg += `\n\nRučně zadaná čísla (${manual.length}) zůstanou beze změny.`;
+  if(over) msg += `\n\nPozor: závodníků je víc než volných čísel v pásmu, ${over} z nich dostane číslo nad ${hi}.`;
   if(noSwim.length) msg += `\n\nPozor: ${noSwim.length} závodník(ů) nemá zadaný čas plavání a dostane čísla až na konci.`;
   if(!confirm(msg)) return;
-  ordered.forEach((r,i)=>{ r.bib = base + i; });
-  state.rows[cat] = ordered;
+  ordered.forEach((r,i)=>{ r.bib = free[i]; r.bibManual = false; });
+  state.rows[cat] = [...rows].sort(compareRowsByBib);
   persist();
   renderAll();
 }
@@ -980,7 +1003,8 @@ function renderEntryBody(){
 
     const bibTd = document.createElement("td");
     bibTd.innerHTML = `<input class="cell bib-input" type="number" inputmode="numeric" min="0" step="1" value="${row.bib>0?row.bib:""}" placeholder="—" title="Startovní číslo se přidělí tlačítkem po plavání; jde i přepsat ručně">`;
-    bibTd.querySelector("input").oninput = e=>{ row.bib = Math.max(0, parseInt(e.target.value,10) || 0); persist(); renderRankings(); renderLaps(); };
+    bibTd.querySelector("input").dataset.id = row.id;
+    bibTd.querySelector("input").oninput = e=>{ row.bib = Math.max(0, parseInt(e.target.value,10) || 0); row.bibManual = row.bib > 0; persist(); markBibDupes(); renderRankings(); renderLaps(); };
     tr.appendChild(bibTd);
 
     const nameTd = document.createElement("td");
@@ -1039,6 +1063,7 @@ function renderEntryBody(){
 
     body.appendChild(tr);
   });
+  markBibDupes();
 }
 
 /* ---------- Cílená aktualizace St. Kolo (bez překreslení celé tabulky) ----------
@@ -1588,6 +1613,7 @@ function rowToDoc(cat, r){
     cat, bib: r.bib||0, name: r.name||"", club: r.club||"",
     plavani: r.plavani||"", dojezd: r.dojezd||"", vysledny: r.vysledny||"",
     dq: !!r.dq,
+    bibManual: !!r.bibManual,
     bikeLaps: (r.bikeLaps||[]).map(Boolean),
     runLaps: (r.runLaps||[]).map(Boolean)
   };
@@ -1597,6 +1623,7 @@ function docToRow(id, d){
     id, bib: d.bib||0, name: d.name||"", club: d.club||"",
     plavani: d.plavani||"", dojezd: d.dojezd||"", vysledny: d.vysledny||"",
     dq: !!d.dq,
+    bibManual: !!d.bibManual,
     bikeLaps: Array.isArray(d.bikeLaps) ? d.bikeLaps.map(Boolean) : [],
     runLaps: Array.isArray(d.runLaps) ? d.runLaps.map(Boolean) : []
   };
