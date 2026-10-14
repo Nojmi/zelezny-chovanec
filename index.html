@@ -164,6 +164,18 @@
   input.bib-input.invalid{border-color:#e0755a; background:rgba(224,117,90,0.18); color:#ff9b82;}
   input.bib-input::-webkit-outer-spin-button, input.bib-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   input.cell:focus, td input:focus{outline:none; border-color:var(--bib);}
+  input.time-cell.time-bad{
+    border:2px solid #ff3b30 !important; background:rgba(255,59,48,0.35) !important; color:#fff !important;
+    font-weight:800; box-shadow:0 0 0 3px rgba(255,59,48,0.35), 0 0 12px rgba(255,59,48,0.7);
+    animation:badPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes badPulse{0%,100%{box-shadow:0 0 0 3px rgba(255,59,48,0.35), 0 0 8px rgba(255,59,48,0.5);} 50%{box-shadow:0 0 0 5px rgba(255,59,48,0.55), 0 0 18px rgba(255,59,48,0.9);}}
+  .entry-warn{
+    background:rgba(255,59,48,0.18); border:2px solid #ff3b30; color:#ffd7d3; border-radius:8px;
+    padding:12px 14px; margin:0 0 14px; font-size:16px; line-height:1.5;
+  }
+  .entry-warn strong{color:#ff6b61;}
+  .entry-warn span{color:var(--text-dim); font-size:14px;}
   input.time-cell.invalid{border-color:#e0755a; background:rgba(224,117,90,0.12);}
 
   .name-cell{min-width:140px;}
@@ -322,7 +334,7 @@
     .cat-chip{color:#000; background:#eee; border:1px solid #000;}
     .member-names{color:#000;}
     .dq-label{color:#000;}
-    .cloud-overlay, #cloudStatus{display:none !important;}
+    .cloud-overlay, #cloudStatus, .entry-warn{display:none !important;}
     .lap-stepper, .lap-preview{display:none !important;}
     .lap-card-scroll{display:block !important;}
     .lap-card{background:#fff; border:1px solid #000; break-inside:avoid; page-break-inside:avoid;}
@@ -491,6 +503,7 @@
 
   <section class="panel entry-panel">
     <h2 class="panel-title">Zápis časů <span class="n" id="entryCount">0</span></h2>
+    <div id="entryWarn" class="entry-warn" role="alert" hidden></div>
     <div style="overflow-x:auto;">
       <table id="entryTable">
         <thead>
@@ -1259,20 +1272,41 @@ function renderSwimRanking(){
   });
 }
 
-/* Dojezd, který nedává smysl (před startem na kole nebo po výsledném čase), zvýrazní pole červeně. */
+/* Dojezd, který nedává smysl (před startem na kole nebo po výsledném čase): výrazné červené
+   zvýraznění polí Dojezd a Výsledný čas hned při zadání + červený pruh s popisem nad tabulkou. */
 function markDojezdWarnings(){
   const rows = state.rows[state.activeCategory];
   const trs = document.querySelectorAll("#entryBody tr");
+  const problems = [];
   rows.forEach((row,i)=>{
     const tr = trs[i]; if(!tr) return;
     const inputs = tr.querySelectorAll("input.time-cell");
-    const inp = inputs[1]; if(!inp) return;
+    const inpD = inputs[1], inpV = inputs[2]; if(!inpD || !inpV) return;
     const calc = computeCalc(rows, row);
     const bad = !!(calc && calc!=="invalid" && calc.dojezdBad);
-    const fmtOk = inp.value.trim()==="" || parseTime(inp.value)!==null;
-    inp.classList.toggle("invalid", bad || !fmtOk);
-    inp.title = bad ? "Dojezd je mimo rozsah: musí být větší než St. Kolo a menší než Výsledný čas (zapište např. 04512 = 0:45:12)" : "";
+    const dj = parseTime(row.dojezd), vy = parseTime(row.vysledny);
+    let why = "";
+    if(bad){
+      why = (dj!==null && vy!==null && dj > vy)
+        ? "Dojezd je větší než Výsledný čas"
+        : "Dojezd je menší než St. Kolo";
+    }
+    const okD = inpD.value.trim()==="" || parseTime(inpD.value)!==null;
+    const okV = inpV.value.trim()==="" || parseTime(inpV.value)!==null;
+    inpD.classList.toggle("invalid", !okD);
+    inpV.classList.toggle("invalid", !okV);
+    inpD.classList.toggle("time-bad", bad);
+    inpV.classList.toggle("time-bad", bad);
+    inpD.title = inpV.title = bad ? why + " (zapište např. 04512 = 0:45:12)" : "";
+    if(bad) problems.push(`${row.name && row.name.trim() ? row.name : (row.bib>0 ? "č. "+row.bib : "bez jména")}: ${why}`);
   });
+  const box = document.getElementById("entryWarn");
+  if(box){
+    box.hidden = problems.length === 0;
+    box.innerHTML = problems.length
+      ? `<strong>⚠ Chyba v zadání času</strong> (${problems.length}): ` + problems.map(escapeHtml).join(" · ") + `<br><span>Pole Dojezd a Výsledný čas jsou zvýrazněná. Čas se píše jako hodiny:minuty:sekundy, tedy 45 minut je 0:45:12 (stačí napsat 04512).</span>`
+      : "";
+  }
 }
 
 function renderCalc(){
