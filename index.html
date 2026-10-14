@@ -931,11 +931,14 @@ function computeCalc(rows, row){
 
   const stKolo = (first.id === row.id) ? 0 : (pOwn - pRef);
   let kolo = null, beh = null;
+  let dojezdBad = false;
   if(dojezd !== null){
     kolo = dojezd - stKolo;
     beh = vysledny - dojezd;
+    // Dojezd musí ležet mezi startem na kole a výsledným časem, jinak je zadán špatně
+    if(kolo < 0 || beh < 0){ dojezdBad = true; kolo = null; beh = null; }
   }
-  return { stKolo, kolo, beh };
+  return { stKolo, kolo, beh, dojezdBad };
 }
 
 /* ---------- St. Kolo (dopočítáno) ----------
@@ -1256,6 +1259,22 @@ function renderSwimRanking(){
   });
 }
 
+/* Dojezd, který nedává smysl (před startem na kole nebo po výsledném čase), zvýrazní pole červeně. */
+function markDojezdWarnings(){
+  const rows = state.rows[state.activeCategory];
+  const trs = document.querySelectorAll("#entryBody tr");
+  rows.forEach((row,i)=>{
+    const tr = trs[i]; if(!tr) return;
+    const inputs = tr.querySelectorAll("input.time-cell");
+    const inp = inputs[1]; if(!inp) return;
+    const calc = computeCalc(rows, row);
+    const bad = !!(calc && calc!=="invalid" && calc.dojezdBad);
+    const fmtOk = inp.value.trim()==="" || parseTime(inp.value)!==null;
+    inp.classList.toggle("invalid", bad || !fmtOk);
+    inp.title = bad ? "Dojezd je mimo rozsah: musí být větší než St. Kolo a menší než Výsledný čas (zapište např. 04512 = 0:45:12)" : "";
+  });
+}
+
 function renderCalc(){
   const cat = state.activeCategory;
   const rows = state.rows[cat];
@@ -1278,6 +1297,7 @@ function renderCalc(){
       stKoloStr = (fastest && fastest.id===row.id) ? "00:00:00" : formatTime(calc.stKolo);
       koloStr = calc.kolo===null ? "—" : formatTime(calc.kolo);
       behStr = calc.beh===null ? "—" : formatTime(calc.beh);
+      if(calc.dojezdBad){ koloStr = behStr = "chyba Dojezdu"; }
     }
     tr.innerHTML = `
       <td><span class="bib-badge">${bibLabel(row.bib)}</span></td>
@@ -1292,6 +1312,7 @@ function renderCalc(){
     `;
     body.appendChild(tr);
   });
+  markDojezdWarnings();
 }
 
 function renderIndividual(){
