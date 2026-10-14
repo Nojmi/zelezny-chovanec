@@ -282,6 +282,8 @@
   }
 
   .print-header{display:none;}
+  .print-only-chip{display:none;}
+  @media print{ .print-only-chip{display:inline-block;} }
 
   .discipline-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;}
   .discipline-title{font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin:0 0 8px; font-weight:700;}
@@ -355,6 +357,18 @@
     body.print-mode-results .entry-panel{display:none !important;}
     body.print-mode-results .swim-panel,
     body.print-mode-results .team-panel{display:none !important;}
+
+    /* Režim TISK PŘEPOČTU: jen tabulka Přepočet, A4 na výšku */
+    .calc-panel{display:none !important;}
+    body.print-mode-calc section.panel:not(.calc-panel){display:none !important;}
+    body.print-mode-calc .calc-panel{display:block !important; padding:0; overflow:visible;}
+    body.print-mode-calc .calc-panel .hint, body.print-mode-calc .empty-hint{display:none !important;}
+    body.print-mode-calc .calc-panel > div{overflow:visible !important;}
+    body.print-mode-calc .calc-panel table{width:100%; font-size:11px; table-layout:auto;}
+    body.print-mode-calc .calc-panel th, body.print-mode-calc .calc-panel td{padding:4px 3px; white-space:nowrap; color:#000 !important;}
+    body.print-mode-calc .calc-panel th{letter-spacing:0 !important; font-size:10px !important;}
+    body.print-mode-calc .calc-panel .name-cell, body.print-mode-calc .calc-panel .club-cell{min-width:0; white-space:normal;}
+    body.print-mode-calc .calc-panel .bib-badge{background:#000 !important; color:#fff !important;}
 
     /* Režim TISK ZADÁVACÍ TABULKY – VERZE 2 */
     .entry2-panel{display:none !important;}
@@ -492,6 +506,7 @@
       <button class="action" onclick="printResults()">🖨 Výsledky jednotlivců</button>
       <button class="action" onclick="printTeamsOnly()">🏆 Pořadí družstev</button>
       <button class="action" onclick="printSwimOnly()">🏊 Pořadí po plavání</button>
+      <button class="action" onclick="printCalc()">🧮 Přepočet</button>
       <button class="action" onclick="printEntryForm()">📝 Zadávací tabulka</button>
       <button class="action" onclick="printEntryForm2()">📝 Zadávací tabulka – verze 2</button>
     </div>
@@ -537,8 +552,8 @@
     <div class="empty-hint" id="swimEmptyHint">Zobrazí se po zadání alespoň jednoho času plavání.</div>
   </section>
 
-  <section class="panel no-print">
-    <h2 class="panel-title">Přepočet <span class="n" id="calcCount">0</span> <span class="hint">Kolo = Dojezd − St.Kolo · Běh = Výsledný čas − Dojezd (Kolo a Běh jen při zadaném Dojezdu)</span></h2>
+  <section class="panel calc-panel">
+    <h2 class="panel-title">Přepočet <span class="n" id="calcCount">0</span> <span class="cat-chip print-only-chip" id="calcCatChip"></span> <span class="hint">Kolo = Dojezd − St.Kolo · Běh = Výsledný čas − Dojezd (Kolo a Běh jen při zadaném Dojezdu)</span></h2>
     <div style="overflow-x:auto;">
       <table>
         <thead><tr>
@@ -1555,7 +1570,7 @@ document.getElementById("eventName").addEventListener("input", e=>{
 
 /* ---------- Tisk: pět režimů ---------- */
 function clearPrintModes(){
-  document.body.classList.remove("print-mode-entry", "print-mode-entry2", "print-mode-swim", "print-mode-results", "print-mode-teams");
+  document.body.classList.remove("print-mode-entry", "print-mode-entry2", "print-mode-swim", "print-mode-results", "print-mode-teams", "print-mode-calc");
   const pageStyle = document.getElementById("printPageStyle");
   if(pageStyle) pageStyle.textContent = "";
 }
@@ -1616,6 +1631,15 @@ function printEntryForm2(){
   document.body.classList.add("print-mode-entry2");
   const pageStyle = document.getElementById("printPageStyle");
   if(pageStyle) pageStyle.textContent = "@media print { @page { size: A4 landscape; margin: 10mm; } }";
+  window.print();
+}
+function printCalc(){
+  clearPrintModes();
+  const chip = document.getElementById("calcCatChip");
+  if(chip) chip.textContent = state.activeCategory;
+  document.body.classList.add("print-mode-calc");
+  const pageStyle = document.getElementById("printPageStyle");
+  if(pageStyle) pageStyle.textContent = "@media print { @page { size: A4 portrait; margin: 10mm; } }";
   window.print();
 }
 function printSwimOnly(){
