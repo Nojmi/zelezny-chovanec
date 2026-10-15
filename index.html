@@ -1308,10 +1308,17 @@ function markDojezdWarnings(){
     }
     const okD = inpD.value.trim()==="" || parseTime(inpD.value)!==null;
     const okV = inpV.value.trim()==="" || parseTime(inpV.value)!==null;
+    const inpP = inputs[0];
+    const okP = !inpP || inpP.value.trim()==="" || parseTime(inpP.value)!==null;
+    if(inpP){ inpP.classList.toggle("invalid", !okP); inpP.classList.toggle("time-bad", !okP); }
     inpD.classList.toggle("invalid", !okD);
     inpV.classList.toggle("invalid", !okV);
-    inpD.classList.toggle("time-bad", bad);
-    inpV.classList.toggle("time-bad", bad);
+    inpD.classList.toggle("time-bad", bad || !okD);
+    inpV.classList.toggle("time-bad", bad || !okV);
+    const nm = row.name && row.name.trim() ? row.name : (row.bib>0 ? "č. "+row.bib : "bez jména");
+    if(!okP) problems.push(`${nm}: Plavání „${inpP.value.trim()}“ není platný čas (minuty a sekundy musí být 0–59)`);
+    if(!okD) problems.push(`${nm}: Dojezd „${inpD.value.trim()}“ není platný čas (minuty a sekundy musí být 0–59)`);
+    if(!okV) problems.push(`${nm}: Výsledný čas „${inpV.value.trim()}“ není platný čas (minuty a sekundy musí být 0–59)`);
     inpD.title = inpV.title = bad ? why + " (zapište např. 04512 = 0:45:12)" : "";
     if(bad) problems.push(`${row.name && row.name.trim() ? row.name : (row.bib>0 ? "č. "+row.bib : "bez jména")}: ${why}`);
   });
@@ -1319,7 +1326,7 @@ function markDojezdWarnings(){
   if(box){
     box.hidden = problems.length === 0;
     box.innerHTML = problems.length
-      ? `<strong>⚠ Chyba v zadání času</strong> (${problems.length}): ` + problems.map(escapeHtml).join(" · ") + `<br><span>Pole Dojezd a Výsledný čas jsou zvýrazněná. Čas se píše jako hodiny:minuty:sekundy, tedy 45 minut je 0:45:12 (stačí napsat 04512).</span>`
+      ? `<strong>⚠ Chyba v zadání času</strong> (${problems.length}): ` + problems.map(escapeHtml).join(" · ") + `<br><span>Chybná pole jsou zvýrazněná červeně. Čas se píše jako hodiny:minuty:sekundy, tedy 45 minut je 0:45:12 (stačí napsat 04512).</span>`
       : "";
   }
 }
